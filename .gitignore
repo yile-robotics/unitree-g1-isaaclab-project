@@ -1,5 +1,8 @@
 logs/
 outputs/
+results/
+*.egg-info/
+.asset_hash
 *.pt
 *.pth
 *.onnx

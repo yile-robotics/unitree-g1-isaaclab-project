@@ -1,0 +1,20 @@
+[package]
+version = "0.1.0"
+category = "isaaclab"
+readme = "README.md"
+
+title = "Unitree G1 Isaac Lab"
+author = "Yile"
+maintainer = "Yile"
+description = "External Isaac Lab tasks for Unitree G1 standing, walking, and later locomotion experiments."
+repository = "file:///home/yile/projects/unitree-g1-isaaclab-project"
+keywords = ["isaaclab", "unitree", "g1", "standing", "locomotion"]
+
+[dependencies]
+"isaaclab" = {}
+"isaaclab_assets" = {}
+"isaaclab_rl" = {}
+"isaaclab_tasks" = {}
+
+[[python.module]]
+name = "unitree_g1_isaaclab"
