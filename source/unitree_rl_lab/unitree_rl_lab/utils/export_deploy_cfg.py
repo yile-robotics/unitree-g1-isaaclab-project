@@ -52,6 +52,10 @@ def export_deploy_cfg(env: ManagerBasedRLEnv, log_dir):
     action_terms = zip(action_names, env.action_manager._terms.values())
     cfg["actions"] = {}
     for action_name, action_term in action_terms:
+        # Environment-generated action terms do not consume policy outputs and
+        # must not appear in the deploy-time policy action configuration.
+        if action_term.action_dim == 0:
+            continue
         term_cfg = action_term.cfg.copy()
         if isinstance(term_cfg.scale, float):
             term_cfg.scale = [term_cfg.scale for _ in range(action_term.action_dim)]

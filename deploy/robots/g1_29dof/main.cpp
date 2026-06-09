@@ -3,6 +3,7 @@
 #include "FSM/State_FixStand.h"
 #include "FSM/State_RLBase.h"
 #include "State_Mimic.h"
+#include <cstdlib>
 
 std::unique_ptr<LowCmd_t> FSMState::lowcmd = nullptr;
 std::shared_ptr<LowState_t> FSMState::lowstate = nullptr;
@@ -29,6 +30,10 @@ int main(int argc, char** argv)
 {
     // Load parameters
     auto vm = param::helper(argc, argv);
+    if (vm["network"].as<std::string>() != "lo")
+    {
+        unsetenv("MUJOCO_TRACKING_EVAL");
+    }
 
     std::cout << " --- Unitree Robotics --- \n";
     std::cout << "     G1-29dof Controller \n";
@@ -48,8 +53,44 @@ int main(int argc, char** argv)
     auto fsm = std::make_unique<CtrlFSM>(param::config["FSM"]);
     fsm->start();
 
-    std::cout << "Press [L2 + Up] to enter FixStand mode.\n";
-    std::cout << "And then press [R1 + X] to start controlling the robot.\n";
+    if(vm.count("auto_fixstand"))
+    {
+        std::cout << "Auto fixstand enabled: Passive -> FixStand only.\n";
+        std::thread([fsm = fsm.get()] {
+            sleep(1);
+            spdlog::info("Auto fixstand: request FixStand");
+            fsm->requestState("FixStand");
+        }).detach();
+    }
+    else if(vm.count("auto_fixstand_then_velocity"))
+    {
+        std::cout << "Auto fixstand-then-velocity enabled: Passive -> FixStand, wait 2s, -> Velocity.\n";
+        std::thread([fsm = fsm.get()] {
+            sleep(1);
+            spdlog::info("Auto fixstand-then-velocity: request FixStand");
+            fsm->requestState("FixStand");
+            sleep(5);
+            spdlog::info("Auto fixstand-then-velocity: request Velocity");
+            fsm->requestState("Velocity");
+        }).detach();
+    }
+    else if(vm.count("auto_start"))
+    {
+        std::cout << "Auto start enabled: Passive -> FixStand -> Velocity.\n";
+        std::thread([fsm = fsm.get()] {
+            sleep(1);
+            spdlog::info("Auto start: request FixStand");
+            fsm->requestState("FixStand");
+            sleep(4);
+            spdlog::info("Auto start: request Velocity");
+            fsm->requestState("Velocity");
+        }).detach();
+    }
+    else
+    {
+        std::cout << "Press [L2 + Up] to enter FixStand mode.\n";
+        std::cout << "And then press [R1 + X] to start controlling the robot.\n";
+    }
 
     while (true)
     {
@@ -58,4 +99,3 @@ int main(int argc, char** argv)
     
     return 0;
 }
-

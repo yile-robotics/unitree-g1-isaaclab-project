@@ -72,6 +72,16 @@ public:
     
     std::vector<float> processed_actions() 
     {
+        if(!_joint_ids.empty()) {
+            std::vector<float> full_actions(
+                env->robot->data.default_joint_pos.data(),
+                env->robot->data.default_joint_pos.data() + env->robot->data.default_joint_pos.size()
+            );
+            for(int i(0); i<_action_dim; ++i) {
+                full_actions[_joint_ids[i]] = _processed_actions[i];
+            }
+            return full_actions;
+        }
         return _processed_actions;
     }
 

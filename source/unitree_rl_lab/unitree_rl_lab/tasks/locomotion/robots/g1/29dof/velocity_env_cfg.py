@@ -20,7 +20,7 @@ from isaaclab.utils.noise import AdditiveUniformNoiseCfg as Unoise
 
 from unitree_rl_lab.assets.robots.unitree import UNITREE_G1_29DOF_CFG as ROBOT_CFG
 from unitree_rl_lab.tasks.locomotion import mdp
-
+# 这个配置文件定义了一个基于 ManagerBasedRLEnv 的强化学习环境，训练目标是让 Unitree G1 机器人跟踪给定的速度指令。
 COBBLESTONE_ROAD_CFG = terrain_gen.TerrainGeneratorCfg(
     size=(8.0, 8.0),
     border_width=20.0,
@@ -36,7 +36,7 @@ COBBLESTONE_ROAD_CFG = terrain_gen.TerrainGeneratorCfg(
     },
 )
 
-
+# 这个配置文件定义了一个基于 ManagerBasedRLEnv 的强化学习环境，训练目标是让 Unitree G1 机器人跟踪给定的速度指令。
 @configclass
 class RobotSceneCfg(InteractiveSceneCfg):
     """Configuration for the terrain scene with a legged robot."""
@@ -160,18 +160,24 @@ class EventCfg:
 class CommandsCfg:
     """Command specifications for the MDP."""
 
+    # 给机器人采样期望速度指令，policy 的任务就是尽量跟踪这些目标速度。
+    # ranges 是训练开始时较小的速度范围，limit_ranges 是课程学习逐步放宽后的最大范围。
     base_velocity = mdp.UniformLevelVelocityCommandCfg(
         asset_name="robot",
         resampling_time_range=(10.0, 10.0),
-        rel_standing_envs=0.02,
+        # rel_standing_envs=0.02,
+        rel_standing_envs=0.1,
         rel_heading_envs=1.0,
         heading_command=False,
         debug_vis=True,
         ranges=mdp.UniformLevelVelocityCommandCfg.Ranges(
             lin_vel_x=(-0.1, 0.1), lin_vel_y=(-0.1, 0.1), ang_vel_z=(-0.1, 0.1)
         ),
+    #   limit_ranges=mdp.UniformLevelVelocityCommandCfg.Ranges(
+    #       lin_vel_x=(-0.5, 1.0), lin_vel_y=(-0.3, 0.3), ang_vel_z=(-0.2, 0.2)
+    #    ),
         limit_ranges=mdp.UniformLevelVelocityCommandCfg.Ranges(
-            lin_vel_x=(-0.5, 1.0), lin_vel_y=(-0.3, 0.3), ang_vel_z=(-0.2, 0.2)
+            lin_vel_x=(-0.3, 0.6), lin_vel_y=(-0.5, 0.5), ang_vel_z=(-0.4, 0.4)
         ),
     )
 
@@ -180,6 +186,10 @@ class CommandsCfg:
 class ActionsCfg:
     """Action specifications for the MDP."""
 
+    # policy 输出的是关节位置增量目标。
+    # joint_names=[".*"] 会匹配 robot asset 中所有可控关节。
+    # scale=0.25 表示网络输出会先乘以 0.25，再加到默认关节角上。
+    # use_default_offset=True 表示以机器人初始默认姿态作为 action 的零点。
     JointPositionAction = mdp.JointPositionActionCfg(
         asset_name="robot", joint_names=[".*"], scale=0.25, use_default_offset=True
     )
@@ -194,11 +204,18 @@ class ObservationsCfg:
         """Observations for policy group."""
 
         # observation terms (order preserved)
+        # 机身角速度，帮助 policy 判断身体是否在旋转或倾倒。
         base_ang_vel = ObsTerm(func=mdp.base_ang_vel, scale=0.2, noise=Unoise(n_min=-0.2, n_max=0.2))
+        # 重力方向在机身坐标系下的投影，常用来判断机身姿态是否水平。
         projected_gravity = ObsTerm(func=mdp.projected_gravity, noise=Unoise(n_min=-0.05, n_max=0.05))
+        # 当前给机器人的期望速度指令，也就是 policy 需要跟踪的目标。
         velocity_commands = ObsTerm(func=mdp.generated_commands, params={"command_name": "base_velocity"})
+        # 关节位置相对默认姿态的偏移。
         joint_pos_rel = ObsTerm(func=mdp.joint_pos_rel, noise=Unoise(n_min=-0.01, n_max=0.01))
+        # 关节速度。scale=0.05 用来把数值缩小到更适合神经网络处理的范围。
         joint_vel_rel = ObsTerm(func=mdp.joint_vel_rel, scale=0.05, noise=Unoise(n_min=-1.5, n_max=1.5))
+        # 把上一帧 action 也作为观测输入，让 policy 知道自己刚刚给过什么控制指令。
+        # 这通常能帮助网络学到更平滑的动作，减少相邻两帧指令突变。
         last_action = ObsTerm(func=mdp.last_action)
         # gait_phase = ObsTerm(func=mdp.gait_phase, params={"period": 0.8})
 
@@ -239,13 +256,24 @@ class RewardsCfg:
     """Reward terms for the MDP."""
 
     # -- task
+    # Original tracking rewards kept for comparison:
+    # track_lin_vel_xy = RewTerm(
+    #     func=mdp.track_lin_vel_xy_yaw_frame_exp,
+    #     weight=1.5,
+    #     params={"command_name": "base_velocity", "std": math.sqrt(0.25)},
+    # )
+    # track_ang_vel_z = RewTerm(
+    #     func=mdp.track_ang_vel_z_exp,
+    #     weight=1.0,
+    #     params={"command_name": "base_velocity", "std": math.sqrt(0.25)},
+    # )
     track_lin_vel_xy = RewTerm(
         func=mdp.track_lin_vel_xy_yaw_frame_exp,
-        weight=1.0,
-        params={"command_name": "base_velocity", "std": math.sqrt(0.25)},
+        weight=1.5,
+        params={"command_name": "base_velocity", "std": 0.25},
     )
     track_ang_vel_z = RewTerm(
-        func=mdp.track_ang_vel_z_exp, weight=0.5, params={"command_name": "base_velocity", "std": math.sqrt(0.25)}
+        func=mdp.track_ang_vel_z_exp, weight=2.5, params={"command_name": "base_velocity", "std": 0.25}
     )
 
     alive = RewTerm(func=mdp.is_alive, weight=0.15)
@@ -258,6 +286,11 @@ class RewardsCfg:
     action_rate = RewTerm(func=mdp.action_rate_l2, weight=-0.05)
     dof_pos_limits = RewTerm(func=mdp.joint_pos_limits, weight=-5.0)
     energy = RewTerm(func=mdp.energy, weight=-2e-5)
+    stand_still = RewTerm(
+        func=mdp.stand_still,
+        weight=-0.3,
+        params={"command_name": "base_velocity"},
+    )
 
     joint_deviation_arms = RewTerm(
         func=mdp.joint_deviation_l1,
@@ -273,15 +306,23 @@ class RewardsCfg:
             )
         },
     )
-    joint_deviation_waists = RewTerm(
+    joint_deviation_waist_yaw = RewTerm(
         func=mdp.joint_deviation_l1,
-        weight=-1,
+        weight=-1.0,
         params={
             "asset_cfg": SceneEntityCfg(
                 "robot",
-                joint_names=[
-                    "waist.*",
-                ],
+                joint_names=["waist_yaw_joint"],
+            )
+        },
+    )
+    joint_deviation_waist_roll_pitch = RewTerm(
+        func=mdp.joint_deviation_l1,
+        weight=-1.0,
+        params={
+            "asset_cfg": SceneEntityCfg(
+                "robot",
+                joint_names=["waist_roll_joint", "waist_pitch_joint"],
             )
         },
     )
@@ -352,6 +393,7 @@ class CurriculumCfg:
 
     terrain_levels = CurrTerm(func=mdp.terrain_levels_vel)
     lin_vel_cmd_levels = CurrTerm(mdp.lin_vel_cmd_levels)
+    ang_vel_cmd_levels = CurrTerm(mdp.ang_vel_cmd_levels)
 
 
 @configclass
@@ -373,9 +415,11 @@ class RobotEnvCfg(ManagerBasedRLEnvCfg):
     def __post_init__(self):
         """Post initialization."""
         # general settings
+        # 每 4 个仿真小步执行一次 policy action，所以控制周期是 4 * sim.dt。
         self.decimation = 4
         self.episode_length_s = 20.0
         # simulation settings
+        # 物理仿真的基础时间步长。
         self.sim.dt = 0.005
         self.sim.render_interval = self.decimation
         self.sim.physics_material = self.scene.terrain.physics_material

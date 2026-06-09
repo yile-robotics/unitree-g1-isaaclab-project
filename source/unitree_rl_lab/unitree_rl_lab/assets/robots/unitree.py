@@ -18,7 +18,7 @@ from isaaclab.utils import configclass
 from unitree_rl_lab.assets.robots import unitree_actuators
 
 UNITREE_MODEL_DIR = "path/to/unitree_model"  # Replace with the actual path to your unitree_model directory
-UNITREE_ROS_DIR = "path/to/unitree_ros"  # Replace with the actual path to your unitree_ros package
+UNITREE_ROS_DIR = "/home/yile/projects/unitree_ros"  # Replace with the actual path to your unitree_ros package
 
 
 @configclass
@@ -395,12 +395,12 @@ UNITREE_G1_23DOF_CFG = UnitreeArticulationCfg(
 )
 
 UNITREE_G1_29DOF_CFG = UnitreeArticulationCfg(
-    # spawn=UnitreeUrdfFileCfg(
-    #     asset_path=f"{UNITREE_ROS_DIR}/robots/g1_description/g1_29dof_rev_1_0.urdf",
-    # ),
-    spawn=UnitreeUsdFileCfg(
-        usd_path=f"{UNITREE_MODEL_DIR}/G1/29dof/usd/g1_29dof_rev_1_0/g1_29dof_rev_1_0.usd",
+    spawn=UnitreeUrdfFileCfg(
+         asset_path=f"{UNITREE_ROS_DIR}/robots/g1_description/g1_29dof_rev_1_0.urdf",
     ),
+    # spawn=UnitreeUsdFileCfg(
+    #    usd_path=f"{UNITREE_MODEL_DIR}/G1/29dof/usd/g1_29dof_rev_1_0/g1_29dof_rev_1_0.usd",
+    #),
     init_state=ArticulationCfg.InitialStateCfg(
         pos=(0.0, 0.0, 0.8),
         joint_pos={
@@ -420,7 +420,9 @@ UNITREE_G1_29DOF_CFG = UnitreeArticulationCfg(
     actuators={
         "N7520-14.3": ImplicitActuatorCfg(
             joint_names_expr=[".*_hip_pitch_.*", ".*_hip_yaw_.*", "waist_yaw_joint"],
+            ##仿真中最大输出力矩/力
             effort_limit_sim=88,
+            ##仿真中最大关节速度
             velocity_limit_sim=32.0,
             stiffness={
                 ".*_hip_.*": 100.0,

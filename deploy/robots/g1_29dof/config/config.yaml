@@ -51,13 +51,23 @@ FSM:
       10,10,10,10,10,10,10,
     ]
     ts: [0, 3]
+    # Original FixStand target pose kept for comparison. It differs from the
+    # Unitree RL Lab policy default pose at shoulder_pitch: original uses 0.0,
+    # while the trained velocity policy default uses 0.3.
+    # original_qs_target: [
+    #   -0.1, 0,0,0.3,-0.2,0,
+    #   -0.1, 0,0,0.3,-0.2,0,
+    #   0,0,0,
+    #   0, 0.25,0,0.97,0.15, 0,0,
+    #   0, -0.25,0,0.97,-0.15, 0,0
+    # ]
     qs: [
       [],
       [ -0.1, 0,0,0.3,-0.2,0,
         -0.1, 0,0,0.3,-0.2,0,
         0,0,0,
-        0, 0.25,0,0.97,0.15, 0,0,
-        0, -0.25,0,0.97,-0.15, 0,0
+        0.3, 0.25,0,0.97,0.15, 0,0,
+        0.3, -0.25,0,0.97,-0.15, 0,0
       ]
     ]
   Velocity:
@@ -66,8 +76,10 @@ FSM:
       Mimic_Dance_102: LT(2s) + down.on_pressed
       Mimic_Gangnam_Style: LT(2s) + left.on_pressed
 
-    policy_dir: config/policy/velocity
     # policy_dir: ../../../logs/rsl_rl/unitree_g1_29dof_velocity
+    # policy_dir: /home/yile/projects/unitree_rl_lab/deploy/robots/g1_29dof/config/policy/velocity/model_32500_mujoco
+    policy_dir: /home/yile/projects/unitree_rl_lab/deploy/robots/g1_29dof/config/policy/velocity/model_35999_standstill_mujoco
+    #policy_dir: /home/yile/projects/unitree_rl_lab/logs/rsl_rl/unitree_g1_29dof_velocity/2026-05-31_21-22-36_g1_29dof_stand015_xy15_yaw10_seed42---
   Mimic_Dance_102:
     transitions: 
       Passive: LT + B.on_pressed
@@ -86,4 +98,3 @@ FSM:
     policy_dir: config/policy/mimic/gangnam_style/
     time_start: 5.2
     time_end: 25.5
-

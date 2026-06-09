@@ -7,6 +7,11 @@
 #include "isaaclab/envs/mdp/actions/joint_actions.h"
 #include "isaaclab/envs/mdp/terminations.h"
 
+namespace isaaclab
+{
+void reset_mujoco_tracking_eval_timer();
+}
+
 class State_RLBase : public FSMState
 {
 public:
@@ -14,6 +19,8 @@ public:
     
     void enter()
     {
+        isaaclab::reset_mujoco_tracking_eval_timer();
+
         // set gain
         for (int i = 0; i < env->robot->data.joint_stiffness.size(); ++i)
         {

@@ -35,7 +35,16 @@ def stand_still(
 
     reward = torch.sum(torch.abs(asset.data.joint_pos - asset.data.default_joint_pos), dim=1)
     cmd_norm = torch.norm(env.command_manager.get_command(command_name), dim=1)
-    return reward * (cmd_norm < 0.1)
+    # return reward * (cmd_norm < 0.1)
+    return reward * (cmd_norm < 0.01)
+
+
+def base_lin_vel_xy_l2(
+    env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")
+) -> torch.Tensor:
+    """Penalize horizontal base linear velocity."""
+    asset: RigidObject = env.scene[asset_cfg.name]
+    return torch.sum(torch.square(asset.data.root_lin_vel_b[:, :2]), dim=1)
 
 
 """
@@ -150,6 +159,15 @@ def feet_contact_without_cmd(
     command_norm = torch.norm(env.command_manager.get_command(command_name), dim=1)
     reward = torch.sum(is_contact, dim=-1).float()
     return reward * (command_norm < 0.1)
+
+
+def both_feet_airborne(
+    env: ManagerBasedRLEnv, sensor_cfg: SceneEntityCfg, force_threshold: float = 10.0
+) -> torch.Tensor:
+    """Penalize a standing robot when neither foot has meaningful ground contact."""
+    contact_sensor: ContactSensor = env.scene.sensors[sensor_cfg.name]
+    feet_forces = torch.norm(contact_sensor.data.net_forces_w[:, sensor_cfg.body_ids], dim=-1)
+    return torch.all(feet_forces < force_threshold, dim=1).float()
 
 
 def air_time_variance_penalty(env: ManagerBasedRLEnv, sensor_cfg: SceneEntityCfg) -> torch.Tensor:

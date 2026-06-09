@@ -7,6 +7,7 @@
 #include "BaseState.h"
 #include <spdlog/spdlog.h>
 #include <yaml-cpp/yaml.h>
+#include <atomic>
 
 class CtrlFSM
 {
@@ -56,6 +57,16 @@ public:
         spdlog::info("FSM: Start {}", currentState->getStateString());
     }
 
+    void requestState(const std::string& state_string)
+    {
+        if(!FSMStringMap.right.count(state_string))
+        {
+            spdlog::error("FSM: State_{} not found", state_string);
+            return;
+        }
+        requestedStateMode.store(FSMStringMap.right.at(state_string));
+    }
+
     void add(std::shared_ptr<BaseState> state)
     {
         for(auto & s : states)
@@ -96,6 +107,12 @@ private:
             }
         }
 
+        int requested = requestedStateMode.exchange(0);
+        if(requested != 0)
+        {
+            nextStateMode = requested;
+        }
+
         if(nextStateMode != 0 && !currentState->isState(nextStateMode))
         {
             for(auto & state : states)
@@ -113,5 +130,6 @@ private:
     }
 
     std::shared_ptr<BaseState> currentState;
+    std::atomic<int> requestedStateMode{0};
     unitree::common::RecurrentThreadPtr fsm_thread_;
 };

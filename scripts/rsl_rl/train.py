@@ -37,7 +37,7 @@ parser.add_argument("--video", action="store_true", default=False, help="Record 
 parser.add_argument("--video_length", type=int, default=200, help="Length of the recorded video (in steps).")
 parser.add_argument("--video_interval", type=int, default=2000, help="Interval between video recordings (in steps).")
 parser.add_argument("--num_envs", type=int, default=None, help="Number of environments to simulate.")
-parser.add_argument("--task", type=str, default=None, choices=tasks, help="Name of the task.")
+parser.add_argument("--task", type=str, default=None, choices=tasks, help="Name of the task.")# 指定要运行/训练的任务名称
 parser.add_argument("--seed", type=int, default=None, help="Seed used for the environment")
 parser.add_argument("--max_iterations", type=int, default=None, help="RL Policy training iterations.")
 parser.add_argument(
@@ -205,6 +205,21 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
 
     # close the simulator
     env.close()
+
+    # Flush TensorBoard data and export training curves after a successful run.
+    try:
+        if getattr(runner, "writer", None) is not None and hasattr(runner.writer, "flush"):
+            runner.writer.flush()
+        scripts_dir = str(pathlib.Path(__file__).parent.parent)
+        sys.path.insert(0, scripts_dir)
+        from plot_training_curves import export_plots
+
+        export_plots(pathlib.Path(log_dir))
+    except Exception as error:
+        print(f"[WARNING] Failed to export training plots: {error}")
+    finally:
+        if "scripts_dir" in locals() and sys.path[0] == scripts_dir:
+            sys.path.pop(0)
 
 
 if __name__ == "__main__":

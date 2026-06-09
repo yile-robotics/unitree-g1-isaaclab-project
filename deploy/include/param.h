@@ -130,6 +130,9 @@ inline po::variables_map helper(int argc, char** argv)
         ("version,v", "show version")
         ("log", "record log file")
         ("network,n", po::value<std::string>()->default_value(""), "dds network interface")
+        ("auto_start", "automatically switch Passive -> FixStand -> Velocity")
+        ("auto_fixstand", "automatically switch Passive -> FixStand only")
+        ("auto_fixstand_then_velocity", "automatically switch Passive -> FixStand, wait, then Velocity")
         ;
 
     po::variables_map vm;
