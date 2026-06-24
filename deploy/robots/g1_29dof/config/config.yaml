@@ -78,7 +78,7 @@ FSM:
 
     # policy_dir: ../../../logs/rsl_rl/unitree_g1_29dof_velocity
     # policy_dir: /home/yile/projects/unitree_rl_lab/deploy/robots/g1_29dof/config/policy/velocity/model_32500_mujoco
-    policy_dir: /home/yile/projects/unitree_rl_lab/deploy/robots/g1_29dof/config/policy/velocity/model_35999_standstill_mujoco
+    policy_dir: /home/yile/projects/unitree_rl_lab/deploy/robots/g1_29dof/config/policy/velocity/model_26999_lower_body_stand
     #policy_dir: /home/yile/projects/unitree_rl_lab/logs/rsl_rl/unitree_g1_29dof_velocity/2026-05-31_21-22-36_g1_29dof_stand015_xy15_yaw10_seed42---
   Mimic_Dance_102:
     transitions: 

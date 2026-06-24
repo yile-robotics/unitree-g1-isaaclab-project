@@ -8,6 +8,7 @@
 #include <cstdlib>
 #include <fstream>
 #include <iostream>
+#include <string>
 #include <tuple>
 #include <vector>
 
@@ -19,56 +20,82 @@ using TrackingClock = std::chrono::steady_clock;
 
 struct TrackingCase
 {
-    const char* name;
+    std::string name;
     float vx;
     float vy;
     float wz;
 };
+
+std::string tracking_case_name(const std::string& prefix, int centi_units)
+{
+    char suffix[16];
+    std::snprintf(suffix, sizeof(suffix), "%03d", std::abs(centi_units));
+    return prefix + "_" + suffix;
+}
+
 //测试mujoco速度跟随 用不同的速度测试并且看跟随能力
 const std::vector<TrackingCase>& mujoco_tracking_cases()
 {
-    static const std::vector<TrackingCase> cases = {
-        {"stand", 0.00f, 0.00f, 0.00f},
-        {"forward_005", 0.05f, 0.00f, 0.00f},
-        {"forward_010", 0.10f, 0.00f, 0.00f},
-        {"forward_020", 0.20f, 0.00f, 0.00f},
-        {"forward_030", 0.30f, 0.00f, 0.00f},
-        {"forward_045", 0.45f, 0.00f, 0.00f},
-        {"forward_060", 0.60f, 0.00f, 0.00f},
-        {"backward_005", -0.05f, 0.00f, 0.00f},
-        {"backward_010", -0.10f, 0.00f, 0.00f},
-        {"backward_020", -0.20f, 0.00f, 0.00f},
-        {"backward_030", -0.30f, 0.00f, 0.00f},
-        {"left_005", 0.00f, 0.05f, 0.00f},
-        {"left_010", 0.00f, 0.10f, 0.00f},
-        {"left_020", 0.00f, 0.20f, 0.00f},
-        {"left_030", 0.00f, 0.30f, 0.00f},
-        {"left_050", 0.00f, 0.50f, 0.00f},
-        {"right_005", 0.00f, -0.05f, 0.00f},
-        {"right_010", 0.00f, -0.10f, 0.00f},
-        {"right_020", 0.00f, -0.20f, 0.00f},
-        {"right_030", 0.00f, -0.30f, 0.00f},
-        {"right_050", 0.00f, -0.50f, 0.00f},
-        {"yaw_left_005", 0.00f, 0.00f, 0.05f},
-        {"yaw_left_010", 0.00f, 0.00f, 0.10f},
-        {"yaw_left_020", 0.00f, 0.00f, 0.20f},
-        {"yaw_left_040", 0.00f, 0.00f, 0.40f},
-        {"yaw_right_005", 0.00f, 0.00f, -0.05f},
-        {"yaw_right_010", 0.00f, 0.00f, -0.10f},
-        {"yaw_right_020", 0.00f, 0.00f, -0.20f},
-        {"yaw_right_040", 0.00f, 0.00f, -0.40f},
-        {"diag_small", 0.05f, 0.05f, 0.05f},
-        {"diag_medium", 0.20f, 0.15f, 0.10f},
-        {"diag_fast", 0.45f, 0.30f, 0.20f},
-        {"diag_limit_pos", 0.60f, 0.50f, 0.40f},
-        {"diag_limit_neg", -0.30f, -0.50f, -0.40f},
-    };
+    static const std::vector<TrackingCase> cases = [] {
+        std::vector<TrackingCase> items;
+        items.push_back({"stand", 0.00f, 0.00f, 0.00f});
+
+        for (int centi = 5; centi <= 60; centi += 5)
+        {
+            items.push_back({tracking_case_name("forward", centi), centi / 100.0f, 0.00f, 0.00f});
+        }
+        for (int centi = 5; centi <= 30; centi += 5)
+        {
+            items.push_back({tracking_case_name("backward", centi), -centi / 100.0f, 0.00f, 0.00f});
+        }
+
+        for (int centi = 5; centi <= 50; centi += 5)
+        {
+            items.push_back({tracking_case_name("left", centi), 0.00f, centi / 100.0f, 0.00f});
+        }
+        for (int centi = 5; centi <= 50; centi += 5)
+        {
+            items.push_back({tracking_case_name("right", centi), 0.00f, -centi / 100.0f, 0.00f});
+        }
+
+        for (int centi = 5; centi <= 40; centi += 5)
+        {
+            items.push_back({tracking_case_name("yaw_left", centi), 0.00f, 0.00f, centi / 100.0f});
+        }
+        for (int centi = 5; centi <= 40; centi += 5)
+        {
+            items.push_back({tracking_case_name("yaw_right", centi), 0.00f, 0.00f, -centi / 100.0f});
+        }
+
+        items.push_back({"diag_small", 0.05f, 0.05f, 0.05f});
+        items.push_back({"diag_medium", 0.20f, 0.15f, 0.10f});
+        items.push_back({"diag_fast", 0.45f, 0.30f, 0.20f});
+        items.push_back({"diag_limit_pos", 0.60f, 0.50f, 0.40f});
+        items.push_back({"diag_limit_neg", -0.30f, -0.50f, -0.40f});
+        return items;
+    }();
     return cases;
 }
 
 bool mujoco_tracking_eval_enabled()
 {
     return std::getenv("MUJOCO_TRACKING_EVAL") != nullptr;
+}
+
+double mujoco_tracking_case_duration_s()
+{
+    const char* duration_env = std::getenv("MUJOCO_TRACKING_CASE_DURATION_S");
+    if (!duration_env)
+    {
+        return 8.0;
+    }
+    const double duration_s = std::atof(duration_env);
+    return duration_s > 0.0 ? duration_s : 8.0;
+}
+
+bool mujoco_tracking_exit_on_done()
+{
+    return std::getenv("MUJOCO_TRACKING_EXIT_ON_DONE") != nullptr;
 }
 
 TrackingClock::time_point mujoco_tracking_start_time;
@@ -111,7 +138,7 @@ REGISTER_OBSERVATION(keyboard_velocity_commands)
     if (mujoco_tracking_eval_enabled())
     {
         static int last_case_index = -1;
-        constexpr double case_duration_s = 8.0;
+        const double case_duration_s = mujoco_tracking_case_duration_s();
 
         if (!mujoco_tracking_timer_started)
         {
@@ -121,6 +148,27 @@ REGISTER_OBSERVATION(keyboard_velocity_commands)
         const auto& cases = mujoco_tracking_cases();
         const double elapsed_s =
             std::chrono::duration<double>(TrackingClock::now() - mujoco_tracking_start_time).count();
+        const double total_duration_s = case_duration_s * static_cast<double>(cases.size());
+        if (elapsed_s >= total_duration_s)
+        {
+            static bool printed_done = false;
+            const TrackingCase done_case = {"done", 0.0f, 0.0f, 0.0f};
+            if (!printed_done)
+            {
+                std::cout << "mujoco tracking evaluation done: "
+                          << cases.size() << " cases x " << case_duration_s
+                          << "s = " << total_duration_s << "s" << std::endl;
+                printed_done = true;
+            }
+            env->robot->data.command_vel_b = Eigen::Vector3f::Zero();
+            write_mujoco_tracking_command(done_case, case_duration_s);
+            if (mujoco_tracking_exit_on_done())
+            {
+                std::exit(0);
+            }
+            return std::vector<float>{0.0f, 0.0f, 0.0f};
+        }
+
         int case_index = static_cast<int>(elapsed_s / case_duration_s);
         if (case_index >= static_cast<int>(cases.size()))
         {

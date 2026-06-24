@@ -71,5 +71,14 @@ datasets
 *.STL
 **/env.yaml
 
+# Vendored MuJoCo source: keep source/assets, exclude local runtime artifacts.
+third_party/unitree_mujoco/simulate/build/
+third_party/unitree_mujoco/simulate/mujoco/
+third_party/unitree_mujoco/simulate/MUJOCO_LOG.TXT
+third_party/unitree_mujoco/simulate/screenshot.png
+!third_party/unitree_mujoco/**/*.STL
+!third_party/unitree_mujoco/**/*.obj
+!third_party/unitree_mujoco/**/*.mtl
+
 # Mimic
 *.npz

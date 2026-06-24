@@ -102,6 +102,31 @@ REGISTER_OBSERVATION(joint_vel_rel)
     return std::vector<float>(data.data(), data.data() + data.size());
 }
 
+// Named aliases used by lower-body policies. The exported deploy config keeps
+// the observation term names from the Isaac Lab environment.
+REGISTER_OBSERVATION(leg_joint_pos)
+{
+    auto & asset = env->robot;
+    const std::vector<int> joint_ids = params["asset_cfg"]["joint_ids"].as<std::vector<int>>();
+    std::vector<float> data(joint_ids.size());
+    for(size_t i = 0; i < joint_ids.size(); ++i) {
+        const auto joint_id = joint_ids[i];
+        data[i] = asset->data.joint_pos[joint_id] - asset->data.default_joint_pos[joint_id];
+    }
+    return data;
+}
+
+REGISTER_OBSERVATION(leg_joint_vel)
+{
+    auto & asset = env->robot;
+    const std::vector<int> joint_ids = params["asset_cfg"]["joint_ids"].as<std::vector<int>>();
+    std::vector<float> data(joint_ids.size());
+    for(size_t i = 0; i < joint_ids.size(); ++i) {
+        data[i] = asset->data.joint_vel[joint_ids[i]];
+    }
+    return data;
+}
+
 REGISTER_OBSERVATION(last_action)
 {
     auto data = env->action_manager->action();

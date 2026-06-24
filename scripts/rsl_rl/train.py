@@ -41,6 +41,18 @@ parser.add_argument("--task", type=str, default=None, choices=tasks, help="Name 
 parser.add_argument("--seed", type=int, default=None, help="Seed used for the environment")
 parser.add_argument("--max_iterations", type=int, default=None, help="RL Policy training iterations.")
 parser.add_argument(
+    "--reset_optimizer",
+    action="store_true",
+    default=False,
+    help="Resume model weights without loading the checkpoint optimizer state.",
+)
+parser.add_argument(
+    "--min_policy_std",
+    type=float,
+    default=None,
+    help="Minimum scalar action standard deviation enforced during training.",
+)
+parser.add_argument(
     "--distributed", action="store_true", default=False, help="Run training with multiple GPUs or nodes."
 )
 # append RSL-RL cli arguments
@@ -163,7 +175,19 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
 
     # save resume path before creating a new log_dir
     if agent_cfg.resume or agent_cfg.algorithm.class_name == "Distillation":
-        resume_path = get_checkpoint_path(log_root_path, agent_cfg.load_run, agent_cfg.load_checkpoint)
+        checkpoint_path = (
+            os.path.abspath(os.path.expanduser(agent_cfg.load_checkpoint))
+            if agent_cfg.load_checkpoint
+            else None
+        )
+        if checkpoint_path and os.path.isfile(checkpoint_path):
+            resume_path = checkpoint_path
+        else:
+            resume_path = get_checkpoint_path(
+                log_root_path,
+                agent_cfg.load_run,
+                agent_cfg.load_checkpoint,
+            )
 
     # wrap for video recording
     if args_cli.video:
@@ -188,7 +212,28 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     if agent_cfg.resume or agent_cfg.algorithm.class_name == "Distillation":
         print(f"[INFO]: Loading model checkpoint from: {resume_path}")
         # load previously trained model
-        runner.load(resume_path)
+        runner.load(resume_path, load_optimizer=not args_cli.reset_optimizer)
+        if args_cli.reset_optimizer:
+            print("[INFO]: Optimizer state was reset for fine-tuning.")
+
+    if args_cli.min_policy_std is not None:
+        if args_cli.min_policy_std <= 0.0:
+            raise ValueError("--min_policy_std must be greater than zero.")
+        policy = runner.alg.policy
+        if not hasattr(policy, "std"):
+            raise ValueError("--min_policy_std requires policy.noise_std_type='scalar'.")
+
+        if policy.std in runner.alg.optimizer.state:
+            runner.alg.optimizer.state.pop(policy.std)
+            print("[INFO]: Cleared stale optimizer state for policy std.")
+
+        def clamp_policy_std(*_args, **_kwargs):
+            with torch.no_grad():
+                policy.std.clamp_(min=args_cli.min_policy_std)
+
+        clamp_policy_std()
+        runner.alg.optimizer.register_step_post_hook(clamp_policy_std)
+        print(f"[INFO]: Enforcing minimum policy std: {args_cli.min_policy_std}")
 
     # dump the configuration into log-directory
     dump_yaml(os.path.join(log_dir, "params", "env.yaml"), env_cfg)

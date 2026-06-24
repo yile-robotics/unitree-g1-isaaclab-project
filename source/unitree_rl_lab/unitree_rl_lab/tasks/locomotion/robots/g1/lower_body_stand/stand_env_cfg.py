@@ -87,11 +87,40 @@ class LowerBodyActionsCfg:
         asset_name="robot",
         joint_names=ARM_JOINT_NAMES,
         preserve_order=True,
-        resampling_time_range=(1.5, 4.0),
-        position_delta_range=(-0.25, 0.25),
-        acceleration_range=(0.5, 1.5),
-        max_velocity_range=(0.2, 0.4),
-        deceleration_range=(0.5, 1.5),
+        # Previous staged arm perturbation:
+        # resampling_time_range=(1.5, 4.0),
+        # position_delta_range=(-0.5, 0.5),
+        # acceleration_range=(0.8, 2.0),
+        # max_velocity_range=(0.35, 1.0),
+        # deceleration_range=(0.8, 2.0),
+        # Previous WBC-AGILE full-range arm randomization:
+        # resampling_time_range=(0.1, 2.5),
+        # sample_full_joint_limits=True,
+        # acceleration_range=(1.0, 20.0),
+        # max_velocity_range=(10.0, 20.0),
+        # deceleration_range=(1.0, 20.0),
+        # Previous smoothing fine-tune:
+        # position_delta_range=(-0.8, 0.8),
+        # randomization_probability=0.4,
+        # Previous uniform stronger mixed perturbation:
+        # position_delta_range=(-1.0, 1.0),
+        # Manipulation-oriented arm targets. At each resample, 70% of
+        # environments receive a random target and 30% return to default.
+        # Position, acceleration, and velocity ranges are scaled to 80% of
+        # the model_25999 training setup.
+        resampling_time_range=(0.1, 2.5),
+        position_delta_ranges={
+            ".*_shoulder_pitch_joint": (-0.96, 0.96),
+            ".*_shoulder_roll_joint": (-0.64, 0.64),
+            ".*_shoulder_yaw_joint": (-0.8, 0.8),
+            ".*_elbow_joint": (-1.04, 1.04),
+            ".*_wrist_.*_joint": (-0.4, 0.4),
+        },
+        sample_full_joint_limits=False,
+        randomization_probability=0.7,
+        acceleration_range=(0.8, 16.0),
+        max_velocity_range=(8.0, 16.0),
+        deceleration_range=(0.8, 16.0),
         accel_fraction=0.25,
         decel_fraction=0.25,
     )
@@ -101,10 +130,15 @@ class LowerBodyActionsCfg:
         joint_names=WAIST_JOINT_NAMES,
         preserve_order=True,
         resampling_time_range=(2.0, 5.0),
-        position_delta_range=(-0.08, 0.08),
-        acceleration_range=(0.2, 0.6),
-        max_velocity_range=(0.08, 0.18),
-        deceleration_range=(0.2, 0.6),
+        # Previous waist perturbation:
+        # position_delta_range=(-0.12, 0.12),
+        # acceleration_range=(0.3, 0.9),
+        # max_velocity_range=(0.12, 0.3),
+        # deceleration_range=(0.3, 0.9),
+        position_delta_range=(-0.048, 0.048),
+        acceleration_range=(0.16, 0.4),
+        max_velocity_range=(0.048, 0.12),
+        deceleration_range=(0.16, 0.4),
         accel_fraction=0.3,
         decel_fraction=0.3,
     )
@@ -174,20 +208,35 @@ class LowerBodyStandRewardsCfg:
 
     leg_joint_deviation = RewTerm(
         func=mdp.joint_deviation_l1,
-        weight=-0.5,
+        # Equivalent to AGILE's zero-command stand_still term for this task:
+        # commands are always zero, but only policy-controlled leg joints are penalized.
+        weight=-0.3,
         params={"asset_cfg": SceneEntityCfg("robot", joint_names=LEG_JOINT_NAMES)},
+    )
+    hip_roll_yaw_deviation = RewTerm(
+        func=mdp.joint_deviation_l1,
+        weight=-1.0,
+        params={
+            "asset_cfg": SceneEntityCfg(
+                "robot",
+                joint_names=[".*_hip_roll_joint", ".*_hip_yaw_joint"],
+            )
+        },
     )
     leg_joint_vel = RewTerm(
         func=mdp.joint_vel_l2,
-        weight=-0.001,
+        # Previous weight: -0.001
+        weight=-0.0015,
         params={"asset_cfg": SceneEntityCfg("robot", joint_names=LEG_JOINT_NAMES)},
     )
     leg_joint_acc = RewTerm(
         func=mdp.joint_acc_l2,
-        weight=-2.5e-7,
+        # Previous weight: -2.5e-7
+        weight=-3.0e-7,
         params={"asset_cfg": SceneEntityCfg("robot", joint_names=LEG_JOINT_NAMES)},
     )
-    action_rate = RewTerm(func=mdp.action_rate_l2, weight=-0.05)
+    # Previous action-rate weight: -0.05
+    action_rate = RewTerm(func=mdp.action_rate_l2, weight=-0.08)
     leg_energy = RewTerm(
         func=mdp.energy,
         weight=-2e-5,
@@ -300,3 +349,22 @@ class LowerBodyStandPlayEnvCfg(LowerBodyStandEnvCfg):
     def __post_init__(self):
         super().__post_init__()
         self.scene.num_envs = 16
+
+        # Hold the upper body at the default pose during evaluation so that
+        # lower-body jitter can be inspected without upper-body disturbances.
+        self.actions.random_arms.sample_full_joint_limits = False
+        self.actions.random_arms.position_delta_ranges = None
+        self.actions.random_arms.position_delta_range = (0.0, 0.0)
+        self.actions.random_arms.disturbance_probabilities = None
+        self.actions.random_arms.disturbance_position_scales = None
+        self.actions.random_arms.disturbance_acceleration_scales = None
+        self.actions.random_arms.disturbance_velocity_scales = None
+        self.actions.random_arms.disturbance_resampling_time_ranges = None
+        self.actions.random_arms.disturbance_group = None
+        self.actions.random_waist.position_delta_range = (0.0, 0.0)
+        self.actions.random_waist.disturbance_probabilities = None
+        self.actions.random_waist.disturbance_position_scales = None
+        self.actions.random_waist.disturbance_acceleration_scales = None
+        self.actions.random_waist.disturbance_velocity_scales = None
+        self.actions.random_waist.disturbance_resampling_time_ranges = None
+        self.actions.random_waist.disturbance_group = None

@@ -1,0 +1,114 @@
+# 这是一套完全独立的双策略控制器配置。
+# 它不会读取或修改 deploy/robots/g1_29dof/config/config.yaml。
+
+domain_id: 10
+
+FSM:
+  _:
+    Passive:
+      id: 1
+    FixStand:
+      id: 2
+    PolicySwitch:
+      id: 3
+
+  Passive:
+    transitions:
+      FixStand: LT + up.on_pressed
+    mode: [
+      1,1,1,1,1,1,
+      1,1,1,1,1,1,
+      1,1,1,
+      1,1,1,1,1,1,1,
+      1,1,1,1,1,1,1,
+    ]
+    kd: [
+      3,3,3,3,3,3,
+      3,3,3,3,3,3,
+      3,3,3,
+      3,3,3,3,3,3,3,
+      3,3,3,3,3,3,3,
+    ]
+
+  FixStand:
+    transitions:
+      Passive: LT + B.on_pressed
+      PolicySwitch: RB + X.on_pressed
+    kp: [
+      100.,100.,100.,150.,40.,40.,
+      100.,100.,100.,150.,40.,40.,
+      200.,200.,200.,
+      40.,40.,40.,40.,40.,40.,40.,
+      40.,40.,40.,40.,40.,40.,40.,
+    ]
+    kd: [
+      2.,2.,2.,4.,2.,2.,
+      2.,2.,2.,4.,2.,2.,
+      5.,5.,5.,
+      10.,10.,10.,10.,10.,10.,10.,
+      10.,10.,10.,10.,10.,10.,10.,
+    ]
+    ts: [0.0, 3.0]
+    qs:
+      - []
+      - [
+          -0.1,0.0,0.0,0.3,-0.2,0.0,
+          -0.1,0.0,0.0,0.3,-0.2,0.0,
+          0.0,0.0,0.0,
+          0.3,0.25,0.0,0.97,0.15,0.0,0.0,
+          0.3,-0.25,0.0,0.97,-0.15,0.0,0.0
+        ]
+
+  PolicySwitch:
+    transitions:
+      Passive: LT + B.on_pressed
+
+    # prepare_policies.sh 会把策略复制到下面两个独立目录。
+    locomotion_policy_dir: policies/locomotion
+    stand_policy_dir: policies/stand
+
+    # 初始进入双策略状态时先使用站立策略。
+    initial_policy: stand
+
+    # false 表示只响应按键 1/2，先进行可控的手动切换测试。
+    # 后续确认可靠后可改为 true，根据速度命令自动切换。
+    automatic_switching: false
+
+    # 两个关节目标之间使用 smoothstep 曲线混合。
+    blend_duration: 0.6
+    stand_blend_duration: 0.30
+    hold_before_stand_duration: 0.0
+
+    # 行走命令逐渐增减，避免切换时命令一步跳变。
+    command_ramp_duration: 0.5
+
+    # 每个 20 ms policy 周期允许的最大关节目标变化。
+    # 0.035 rad 约等于 2 度。
+    max_joint_target_step: 0.080
+
+    # 请求从行走切到站立后，先将 locomotion 命令降为零，
+    # 只抓一个短暂的可接管窗口，而不是等待完全静止。
+    stand_settle_time: 0.10
+    max_settle_joint_velocity: 0.8
+    max_settle_yaw_rate: 0.25
+    stop_window_max_tilt_angle: 0.50
+    min_stand_wait_time: 2.00
+    require_leg_velocity_for_stand: false
+
+    # 如果一直抓不到理想窗口，先放宽条件；再超时则强制平滑切站立，
+    # 避免 cmd=0 仍小踏步的 locomotion policy 无限等待。
+    stand_wait_relax_time: 1000000.0
+    relaxed_max_settle_joint_velocity: 0.8
+    relaxed_max_settle_yaw_rate: 0.25
+    stand_wait_timeout: 1.20
+
+    # 自动切换迟滞。进入和退出站立使用不同阈值，防止来回抖动。
+    stand_command_threshold: 0.03
+    locomotion_command_threshold: 0.06
+
+    # 安全保护：倾斜角超过该值时回到 Passive。
+    max_tilt_angle: 0.65
+
+    # 键盘速度命令增量。
+    linear_command_step: 0.05
+    yaw_command_step: 0.02

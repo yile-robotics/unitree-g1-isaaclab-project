@@ -12,6 +12,7 @@ class LowerBodyStandPPORunnerCfg(RslRlOnPolicyRunnerCfg):
     run_name = "lower_body_stand_random_upper"
     empirical_normalization = False
     policy = RslRlPpoActorCriticCfg(
+        # Previous initial exploration noise: 0.5
         init_noise_std=0.5,
         actor_hidden_dims=[256, 256, 128],
         critic_hidden_dims=[512, 256, 128],
@@ -21,7 +22,8 @@ class LowerBodyStandPPORunnerCfg(RslRlOnPolicyRunnerCfg):
         value_loss_coef=1.0,
         use_clipped_value_loss=True,
         clip_param=0.2,
-        entropy_coef=0.005,
+        # Previous entropy coefficient: 0.005
+        entropy_coef=0.001,
         num_learning_epochs=5,
         num_mini_batches=4,
         learning_rate=1.0e-3,
