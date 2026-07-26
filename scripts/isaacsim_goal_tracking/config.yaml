@@ -1,0 +1,82 @@
+scene_usd: /home/yile/scene/House/scene_047/mujoco/usd/scene_scene_047.usda
+robot_urdf: /home/yile/projects/unitree_ros/robots/g1_description/g1_29dof_rev_1_0.urdf
+generated_robot_usd: /home/yile/projects/unitree-g1-isaaclab-project/assets/g1_29dof_rev_1_0/usd/g1_29dof_rev_1_0.usd
+# Fallback only. The lock-waist asset has waist_roll_joint and waist_pitch_joint fixed,
+# so it is not compatible with the 29DOF Unitree RL Lab goal-tracking deploy config.
+robot_usd: /home/yile/projects/unitree-g1-isaaclab-project/assets/g1_29dof_lock_waist_rev_1_0/usd/g1_29dof_lock_waist_rev_1_0.usd
+robot_prim_path: /World/G1
+
+stand_policy_dir: /home/yile/projects/unitree_rl_lab/logs/rsl_rl/unitree_g1_29dof_lower_body_stand/2026-06-13_20-46-55_lower_body_stand_agile_reward_disturbance80_from22000_finetune5k_seed42
+locomotion_policy_dir: /home/yile/projects/unitree_rl_lab/deploy/robots/g1_29dof_goal_tracking/policies/locomotion
+
+spawn:
+  # House scene_047 spans roughly x=[0, 3.6], y=[0, 8.2].
+  # Start in an open bedroom patch, away from the narrow hallway, bed, bench, and desk.
+  # Match the IsaacLab UNITREE_G1_29DOF_CFG initial base height.
+  position: [1.2, 3.75, 0.8]
+  yaw: 0.0
+
+urdf_import:
+  regenerate: false
+  merge_fixed_joints: false
+  fix_base: false
+  self_collision: true
+  replace_cylinders_with_capsules: true
+  joint_stiffness: 0.0
+  joint_damping: 0.0
+  joint_target_type: position
+
+sim:
+  physics_dt: 0.005
+  render_dt: 0.0166667
+  warmup_steps: 1
+  # Use -1 to keep the simulation running until Ctrl-C or closing the Isaac Sim window.
+  run_steps: -1
+  real_time: true
+
+camera:
+  eye: [4.2, 3.2, 2.4]
+  target: [1.2, 3.75, 0.8]
+
+control:
+  # Keep the direct Isaac Sim runner aligned with unitree_rl_lab
+  # UNITREE_G1_29DOF_CFG actuator limits.
+  apply_unitree_actuator_properties: true
+  # Match g1_29dof_goal_tracking: stand targets are limited once per 20 ms policy step.
+  max_joint_target_step: 0.08
+  # Locomotion-only testing has no stand FSM, so blend into the locomotion target
+  # once at startup to avoid a first-frame position jump.
+  locomotion_startup_blend_duration: 0.6
+  print_every_steps: 100
+  # The stand ONNX controls only the 12 leg joints. Hold waist and arms at their
+  # default stand pose with the same deploy PD used by g1_29dof_goal_tracking.
+  upper_body_hold:
+    enabled: true
+    waist_yaw_stiffness: 200.0
+    waist_yaw_damping: 5.0
+    waist_roll_pitch_stiffness: 40.0
+    waist_roll_pitch_damping: 5.0
+    arm_stiffness: 40.0
+    arm_damping: 1.0
+
+keyboard:
+  enabled: true
+  automatic_switching: false
+  command_ramp_duration: 0.5
+  blend_duration: 0.6
+  stand_blend_duration: 0.3
+  hold_before_stand_duration: 0.0
+  stand_settle_time: 0.10
+  max_settle_joint_velocity: 0.8
+  max_settle_yaw_rate: 0.25
+  stop_window_max_tilt_angle: 0.50
+  min_stand_wait_time: 2.00
+  require_leg_velocity_for_stand: false
+  stand_wait_relax_time: 1000000.0
+  relaxed_max_settle_joint_velocity: 0.8
+  relaxed_max_settle_yaw_rate: 0.25
+  stand_wait_timeout: 1.20
+  stand_command_threshold: 0.03
+  locomotion_command_threshold: 0.06
+  linear_command_step: 0.05
+  yaw_command_step: 0.02
