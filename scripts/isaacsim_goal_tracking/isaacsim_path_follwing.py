@@ -77,11 +77,61 @@ if args_cli.lavira_history_probe:
         parser.error("--lavira_stop_reached_threshold_m must be positive.")
     if args_cli.lavira_backtrack_max_path_m <= 0.0:
         parser.error("--lavira_backtrack_max_path_m must be positive.")
+    if args_cli.lavira_online_navigation:
+        if args_cli.nav_map_mode != "lavira_compatible_global":
+            parser.error(
+                "--lavira_online_navigation requires "
+                "--nav_map_mode lavira_compatible_global."
+            )
+        if args_cli.lavira_backtrack_strategy != "replan_world_goal":
+            parser.error(
+                "--lavira_online_navigation requires "
+                "--lavira_backtrack_strategy replan_world_goal so periodic "
+                "BACKTRACK plans keep one unambiguous world goal."
+            )
+        positive_online_values = (
+            args_cli.lavira_online_mapping_interval_s,
+            args_cli.lavira_online_replan_interval_s,
+            args_cli.lavira_collision_command_speed_m_s,
+            args_cli.lavira_collision_window_s,
+            args_cli.lavira_collision_mark_distance_m,
+        )
+        if any(value <= 0.0 for value in positive_online_values):
+            parser.error(
+                "Online mapping, replanning, collision timing, command speed, "
+                "and mark distance must be positive."
+            )
+        if args_cli.lavira_collision_min_progress_m < 0.0:
+            parser.error("--lavira_collision_min_progress_m must be non-negative.")
+        if args_cli.lavira_collision_mark_radius_m < 0.0:
+            parser.error("--lavira_collision_mark_radius_m must be non-negative.")
 if args_cli.lavira_local_map_probe and not lavira_decision_enabled:
     parser.error("--lavira_local_map_probe requires a LaViRA decision mode.")
 if args_cli.lavira_local_map_probe:
     if args_cli.nav_map_resolution_m <= 0.0 or args_cli.nav_map_size_m <= 0.0:
         parser.error("Navigation map resolution and size must be positive.")
+    nav_map_cells = args_cli.nav_map_size_m / args_cli.nav_map_resolution_m
+    if abs(nav_map_cells - round(nav_map_cells)) > 1.0e-6:
+        parser.error("--nav_map_size_m must be divisible by --nav_map_resolution_m.")
+    if args_cli.nav_global_downscaling <= 0:
+        parser.error("--nav_global_downscaling must be positive.")
+    if int(round(nav_map_cells)) % args_cli.nav_global_downscaling != 0:
+        parser.error(
+            "Navigation map cell count must be divisible by "
+            "--nav_global_downscaling."
+        )
+    if args_cli.nav_global_center_reset_steps <= 0:
+        parser.error("--nav_global_center_reset_steps must be positive.")
+    if args_cli.nav_global_origin_mode == "manual":
+        if (
+            args_cli.nav_global_origin_world_x_m is None
+            or args_cli.nav_global_origin_world_y_m is None
+        ):
+            parser.error(
+                "Manual global origin requires both "
+                "--nav_global_origin_world_x_m and "
+                "--nav_global_origin_world_y_m."
+            )
     if args_cli.nav_depth_stride <= 0:
         parser.error("--nav_depth_stride must be positive.")
     if not 0.0 <= args_cli.nav_obstacle_min_height_m < args_cli.nav_obstacle_max_height_m:

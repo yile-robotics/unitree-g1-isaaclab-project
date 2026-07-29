@@ -366,6 +366,57 @@ def build_parser(app_launcher_cls) -> argparse.ArgumentParser:
         help="Maximum locomotion time for each bounded NAVIGATE, BACKTRACK, or STOP action.",
     )
     parser.add_argument(
+        "--lavira_online_navigation",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+        help=(
+            "While an action executes, periodically fuse four-view RGB-D, update "
+            "the LaViRA collision mask, and hot-swap a new FMM path to the same goal."
+        ),
+    )
+    parser.add_argument(
+        "--lavira_online_mapping_interval_s",
+        type=float,
+        default=1.0,
+        help="Seconds between four-view global-map updates during locomotion.",
+    )
+    parser.add_argument(
+        "--lavira_online_replan_interval_s",
+        type=float,
+        default=1.0,
+        help="Minimum seconds between periodic FMM replans to the active world goal.",
+    )
+    parser.add_argument(
+        "--lavira_collision_command_speed_m_s",
+        type=float,
+        default=0.12,
+        help="Minimum applied planar command considered by online stall detection.",
+    )
+    parser.add_argument(
+        "--lavira_collision_window_s",
+        type=float,
+        default=0.75,
+        help="Continuous commanded-motion window used to detect a G1 stall.",
+    )
+    parser.add_argument(
+        "--lavira_collision_min_progress_m",
+        type=float,
+        default=0.04,
+        help="Minimum root XY progress expected over one collision window.",
+    )
+    parser.add_argument(
+        "--lavira_collision_mark_distance_m",
+        type=float,
+        default=0.45,
+        help="Distance from the robot to the inferred collision-map center.",
+    )
+    parser.add_argument(
+        "--lavira_collision_mark_radius_m",
+        type=float,
+        default=0.15,
+        help="Radius of each persistent online collision-map disk.",
+    )
+    parser.add_argument(
         "--lavira_stop_reached_threshold_m",
         type=float,
         default=0.75,
@@ -428,6 +479,62 @@ def build_parser(app_launcher_cls) -> argparse.ArgumentParser:
         type=float,
         default=24.0,
         help="Square navigation map side length in meters; 24 matches LaViRA.",
+    )
+    parser.add_argument(
+        "--nav_map_mode",
+        choices=("local_current_bundle", "lavira_compatible_global"),
+        default="lavira_compatible_global",
+        help=(
+            "Map state used by the bounded episode. lavira_compatible_global "
+            "keeps one fixed cumulative full map; local_current_bundle preserves "
+            "the earlier robot-centred one-observation behavior."
+        ),
+    )
+    parser.add_argument(
+        "--nav_global_origin_mode",
+        choices=("spawn_center", "manual"),
+        default="spawn_center",
+        help=(
+            "spawn_center reads the first FrameBundle robot pose and places it at "
+            "the fixed global-map center. manual uses the explicit lower-left "
+            "world origin parameters."
+        ),
+    )
+    parser.add_argument(
+        "--nav_global_origin_world_x_m",
+        type=float,
+        default=None,
+        help="Manual global-map lower-left world X; used only with origin_mode=manual.",
+    )
+    parser.add_argument(
+        "--nav_global_origin_world_y_m",
+        type=float,
+        default=None,
+        help="Manual global-map lower-left world Y; used only with origin_mode=manual.",
+    )
+    parser.add_argument(
+        "--nav_global_downscaling",
+        type=int,
+        default=2,
+        help=(
+            "Full/local side-length ratio. LaViRA uses 2, yielding a 12 m local "
+            "window inside the default 24 m full map."
+        ),
+    )
+    parser.add_argument(
+        "--nav_global_center_reset_steps",
+        type=int,
+        default=25,
+        help="Recenter the LaViRA-style local window after this many map updates.",
+    )
+    parser.add_argument(
+        "--nav_global_unknown_space_policy",
+        choices=("blocked", "lavira"),
+        default="blocked",
+        help=(
+            "blocked keeps unseen cells non-traversable for G1 safety. lavira "
+            "allows unknown non-obstacle cells, closer to the original policy."
+        ),
     )
     parser.add_argument(
         "--nav_depth_stride",

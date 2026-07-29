@@ -18,12 +18,16 @@ from __future__ import annotations
 - ``max_decisions=N`` 时，前 ``N-1`` 个普通 NAVIGATE/BACKTRACK 可以执行。
 - 第 ``N`` 个普通响应只校验和保存，机器人保持停止。
 - STOP 是终止动作，即使出现在最后一次允许的请求中也会执行最终接近。
-- 规划或执行失败会进入 FAILED；当前不会自动重新抓图、重规划或恢复 episode。
+- 可选 online navigation 在执行期低频融合新 RGB-D，并对同一个活动世界目标
+  周期 FMM 或碰撞触发 FMM；它不会产生额外模型请求或改变 history。
+- 初始规划或运动安全失败会进入 FAILED；普通周期重规划失败保留上一个已验证
+  路径，碰撞触发重规划失败则安全停止。
 """
 
 from dataclasses import dataclass
 from datetime import datetime
 import json
+import math
 from pathlib import Path
 from typing import Callable
 
@@ -37,6 +41,11 @@ from .fmm_planner import (
     save_fmm_plan_debug,
 )
 from .frame_bundle import FourViewCameraRig, FrameBundle
+from .lavira_global_mapping import (
+    LaViRAGlobalMapState,
+    lavira_global_map_config_from_args,
+    save_lavira_global_map_debug,
+)
 from .lavira_offline import NavigationDecisionOfflineProbe
 from .lavira_protocol import (
     LAVIRA_MAX_HISTORY_IMAGE_WAYPOINTS,
@@ -161,6 +170,37 @@ class BacktrackExecutionRequest:
     fmm_plan: StoredBacktrackPlan
 
 
+@dataclass
+class ActiveNavigationGoal:
+    """Stable world goal retained while maps and FMM paths are refreshed."""
+
+    action: str
+    decision_index: int
+    goal_world_xy: np.ndarray
+    execution_max_path_m: float
+    target_waypoint_id: int | None = None
+    replan_count: int = 0
+    last_replan_step: int | None = None
+    last_fmm_plan: FMMPlan | None = None
+
+    def to_dict(self) -> dict:
+        return {
+            "action": self.action,
+            "decision_index": self.decision_index,
+            "goal_world_xy": self.goal_world_xy.tolist(),
+            "execution_max_path_m": self.execution_max_path_m,
+            "target_waypoint_id": self.target_waypoint_id,
+            "replan_count": self.replan_count,
+            "last_replan_step": self.last_replan_step,
+            "last_plan_bundle_id": (
+                int(getattr(self.last_fmm_plan, "bundle_id"))
+                if self.last_fmm_plan is not None
+                and getattr(self.last_fmm_plan, "bundle_id", None) is not None
+                else None
+            ),
+        }
+
+
 def build_replanned_backtrack_execution_request(
     records: list[RuntimeWaypointRecord] | tuple[RuntimeWaypointRecord, ...],
     bundle: FrameBundle,
@@ -218,6 +258,67 @@ def build_replanned_backtrack_execution_request(
         execution_source=(
             f"lavira_replanned_backtrack_waypoint_{target_waypoint_id:03d}_"
             f"decision_{decision_index:03d}"
+        ),
+        target_waypoint_id=int(target_waypoint_id),
+        execution_max_path_m=float(execution_max_path_m),
+    )
+    return BacktrackExecutionRequest(execution_plan), grid_map, fmm_plan
+
+
+def build_global_replanned_backtrack_execution_request(
+    records: list[RuntimeWaypointRecord] | tuple[RuntimeWaypointRecord, ...],
+    global_map_state: LaViRAGlobalMapState,
+    *,
+    target_waypoint_id: int,
+    decision_index: int,
+    fmm_planner_config: FMMPlannerConfig,
+    execution_max_path_m: float = 6.0,
+) -> tuple[BacktrackExecutionRequest, NavigationGridMap, FMMPlan]:
+    """Replan to Qwen's selected history waypoint on the cumulative full map."""
+
+    records = tuple(records)
+    if not records:
+        raise ValueError("BACKTRACK requires at least one committed history waypoint.")
+    if not isinstance(target_waypoint_id, int):
+        raise ValueError("BACKTRACK waypoint must be an integer.")
+    if not 0 <= target_waypoint_id < len(records):
+        raise ValueError(
+            f"BACKTRACK waypoint {target_waypoint_id} is outside committed "
+            f"history [0, {len(records) - 1}]."
+        )
+    if execution_max_path_m <= 0.0:
+        raise ValueError("BACKTRACK maximum path length must be positive.")
+    target_record = records[target_waypoint_id]
+    if target_record.execution_status != "arrived":
+        raise ValueError(
+            f"BACKTRACK waypoint {target_waypoint_id} is not an arrived record."
+        )
+    decision_pose = np.asarray(target_record.decision_world_pose, dtype=np.float64)
+    if decision_pose.shape != (4, 4) or not np.all(np.isfinite(decision_pose)):
+        raise ValueError(
+            f"BACKTRACK waypoint {target_waypoint_id} has an invalid decision pose."
+        )
+
+    target_world_xy = decision_pose[:2, 3].copy()
+    grid_map = global_map_state.build_navigation_grid_map(
+        historical_target_world_xy=target_world_xy
+    )
+    if grid_map.safe_target_world_xy is None:
+        raise RuntimeError(
+            f"BACKTRACK waypoint {target_waypoint_id} is not reachable on the "
+            "cumulative global traversability map."
+        )
+    fmm_plan = build_fmm_plan(grid_map, fmm_planner_config)
+    execution_plan = StoredBacktrackPlan(
+        bundle_id=int(decision_index),
+        start_world_xy=np.asarray(fmm_plan.start_world_xy, dtype=np.float64).copy(),
+        waypoints_world_xy=np.asarray(
+            fmm_plan.waypoints_world_xy, dtype=np.float64
+        ).copy(),
+        path_length_m=float(fmm_plan.path_length_m),
+        execution_source=(
+            f"lavira_global_replanned_backtrack_waypoint_"
+            f"{target_waypoint_id:03d}_decision_{decision_index:03d}"
         ),
         target_waypoint_id=int(target_waypoint_id),
         execution_max_path_m=float(execution_max_path_m),
@@ -362,6 +463,58 @@ class LaViRABoundedEpisodeController:
                 "lavira_backtrack_strategy must be 'replan_world_goal' "
                 "or 'stored_reverse'."
             )
+        self.navigation_map_mode = str(
+            getattr(args_cli, "nav_map_mode", "local_current_bundle")
+        )
+        if self.navigation_map_mode not in {
+            "local_current_bundle",
+            "lavira_compatible_global",
+        }:
+            raise ValueError(
+                "nav_map_mode must be 'local_current_bundle' or "
+                "'lavira_compatible_global'."
+            )
+        self.global_map_state: LaViRAGlobalMapState | None = None
+        if self.navigation_map_mode == "lavira_compatible_global":
+            navigation_config = navigation_map_config_from_args(args_cli)
+            global_config = lavira_global_map_config_from_args(args_cli)
+            self.global_map_state = LaViRAGlobalMapState(
+                navigation_config,
+                global_config,
+            )
+        self.online_navigation = bool(
+            getattr(args_cli, "lavira_online_navigation", False)
+        )
+        if self.online_navigation and self.global_map_state is None:
+            raise ValueError(
+                "Online LaViRA navigation requires the cumulative global map."
+            )
+        if (
+            self.online_navigation
+            and self.backtrack_strategy != "replan_world_goal"
+        ):
+            raise ValueError(
+                "Online LaViRA navigation requires replan_world_goal BACKTRACK."
+            )
+        if self.online_navigation:
+            positive_names = (
+                "lavira_online_mapping_interval_s",
+                "lavira_online_replan_interval_s",
+                "lavira_collision_command_speed_m_s",
+                "lavira_collision_window_s",
+                "lavira_collision_mark_distance_m",
+            )
+            for name in positive_names:
+                if float(getattr(args_cli, name)) <= 0.0:
+                    raise ValueError(f"{name} must be positive.")
+            if float(args_cli.lavira_collision_min_progress_m) < 0.0:
+                raise ValueError(
+                    "lavira_collision_min_progress_m must be non-negative."
+                )
+            if float(args_cli.lavira_collision_mark_radius_m) < 0.0:
+                raise ValueError(
+                    "lavira_collision_mark_radius_m must be non-negative."
+                )
         self.state = EpisodeState.WAIT_WARMUP
         self.history: list[RuntimeWaypointRecord] = []
         self.pending_waypoint: RuntimeWaypointRecord | None = None
@@ -378,6 +531,16 @@ class LaViRABoundedEpisodeController:
         self.backtrack_event: dict | None = None
         self.stop_goal_world_xy: np.ndarray | None = None
         self.stop_event: dict | None = None
+        self.active_goal: ActiveNavigationGoal | None = None
+        self.online_events: list[dict] = []
+        self.online_map_update_count = 0
+        self.online_replan_count = 0
+        self.online_collision_count = 0
+        self._last_online_map_time_s: float | None = None
+        self._last_online_replan_time_s: float | None = None
+        self._collision_window_start_time_s: float | None = None
+        self._collision_window_start_xy: np.ndarray | None = None
+        self._collision_direction_world_xy: np.ndarray | None = None
         self.decisions_completed = 0
         self._stand_stable_elapsed = 0.0
         self._run_id = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
@@ -393,6 +556,8 @@ class LaViRABoundedEpisodeController:
         command_controller,
         switch_state,
         start_path: Callable[[object], bool],
+        hot_swap_path: Callable[[FMMPlan, float], bool] | None = None,
+        applied_velocity_command: np.ndarray | None = None,
     ) -> None:
         if not self.enabled or self.completed or self.state == EpisodeState.FAILED:
             return
@@ -466,6 +631,22 @@ class LaViRABoundedEpisodeController:
                             switch_state=switch_state,
                         )
                         return
+            if (
+                not path_follower.goal_reached
+                and self.online_navigation
+            ):
+                self._maybe_update_online_navigation(
+                    camera_rig,
+                    completed_step=completed_step,
+                    step_dt=step_dt,
+                    path_follower=path_follower,
+                    command_controller=command_controller,
+                    switch_state=switch_state,
+                    hot_swap_path=hot_swap_path,
+                    applied_velocity_command=applied_velocity_command,
+                )
+                if self.state == EpisodeState.FAILED:
+                    return
             timeout_seconds = float(self.args_cli.lavira_history_execution_timeout)
             elapsed = (
                 (int(completed_step) - int(self.execution_started_step))
@@ -570,6 +751,11 @@ class LaViRABoundedEpisodeController:
             self.decisions_completed += 1
             action = probe.response.action.upper()
             is_terminal_read = decision_index >= self.max_decisions - 1
+            self._apply_global_map_to_probe(
+                probe,
+                action=action,
+                plan_target=(not is_terminal_read or action == "STOP"),
+            )
 
             # STOP is a terminal navigation action in LaViRA, not merely another
             # bounded-episode response. Let it finish its bbox/FMM approach even
@@ -594,6 +780,7 @@ class LaViRABoundedEpisodeController:
                     probe,
                     decision_index=decision_index,
                     completed_step=completed_step,
+                    step_dt=step_dt,
                     path_follower=path_follower,
                     command_controller=command_controller,
                     switch_state=switch_state,
@@ -614,34 +801,78 @@ class LaViRABoundedEpisodeController:
                             "BACKTRACK world-goal replanning requires the current "
                             "FrameBundle."
                         )
-                    (
-                        request,
-                        replanned_grid_map,
-                        replanned_fmm_plan,
-                    ) = build_replanned_backtrack_execution_request(
-                        self.history,
-                        probe.bundle,
-                        target_waypoint_id=target_waypoint,
-                        decision_index=decision_index,
-                        navigation_map_config=navigation_map_config_from_args(
-                            self.args_cli
-                        ),
-                        fmm_planner_config=fmm_planner_config_from_args(
-                            self.args_cli
-                        ),
-                        execution_max_path_m=float(
-                            self.args_cli.lavira_backtrack_max_path_m
-                        ),
-                    )
-                    if probe.output_dir is not None:
-                        save_navigation_map_debug(
-                            Path(probe.output_dir), replanned_grid_map
-                        )
-                        save_fmm_plan_debug(
-                            Path(probe.output_dir),
+                    if self.global_map_state is not None:
+                        (
+                            request,
                             replanned_grid_map,
                             replanned_fmm_plan,
+                        ) = build_global_replanned_backtrack_execution_request(
+                            self.history,
+                            self.global_map_state,
+                            target_waypoint_id=target_waypoint,
+                            decision_index=decision_index,
+                            fmm_planner_config=fmm_planner_config_from_args(
+                                self.args_cli
+                            ),
+                            execution_max_path_m=float(
+                                self.args_cli.lavira_backtrack_max_path_m
+                            ),
                         )
+                    else:
+                        (
+                            request,
+                            replanned_grid_map,
+                            replanned_fmm_plan,
+                        ) = build_replanned_backtrack_execution_request(
+                            self.history,
+                            probe.bundle,
+                            target_waypoint_id=target_waypoint,
+                            decision_index=decision_index,
+                            navigation_map_config=navigation_map_config_from_args(
+                                self.args_cli
+                            ),
+                            fmm_planner_config=fmm_planner_config_from_args(
+                                self.args_cli
+                            ),
+                            execution_max_path_m=float(
+                                self.args_cli.lavira_backtrack_max_path_m
+                            ),
+                        )
+                    if probe.output_dir is not None:
+                        if self.global_map_state is not None:
+                            global_files = save_lavira_global_map_debug(
+                                Path(probe.output_dir),
+                                self.global_map_state,
+                                replanned_grid_map,
+                            )
+                            global_planning_dir = (
+                                Path(probe.output_dir) / "global_planning"
+                            )
+                            global_planning_dir.mkdir(
+                                parents=True, exist_ok=True
+                            )
+                            fmm_files = save_fmm_plan_debug(
+                                global_planning_dir,
+                                replanned_grid_map,
+                                replanned_fmm_plan,
+                            )
+                            self._record_global_planning_interpretation(
+                                probe,
+                                action="BACKTRACK",
+                                planning_map=replanned_grid_map,
+                                fmm_plan=replanned_fmm_plan,
+                                global_files=global_files,
+                                fmm_files=fmm_files,
+                            )
+                        else:
+                            save_navigation_map_debug(
+                                Path(probe.output_dir), replanned_grid_map
+                            )
+                            save_fmm_plan_debug(
+                                Path(probe.output_dir),
+                                replanned_grid_map,
+                                replanned_fmm_plan,
+                            )
                 else:
                     request = build_backtrack_execution_request(
                         self.history,
@@ -685,6 +916,21 @@ class LaViRABoundedEpisodeController:
                         f"decision {decision_index} BACKTRACK path was not accepted "
                         "for locomotion."
                     )
+                self._begin_active_goal(
+                    action="BACKTRACK",
+                    decision_index=decision_index,
+                    goal_world_xy=np.asarray(
+                        self.history[target_waypoint].decision_world_pose[:2, 3],
+                        dtype=np.float64,
+                    ),
+                    execution_max_path_m=float(
+                        self.args_cli.lavira_backtrack_max_path_m
+                    ),
+                    completed_step=completed_step,
+                    step_dt=step_dt,
+                    target_waypoint_id=target_waypoint,
+                    initial_fmm_plan=replanned_fmm_plan,
+                )
                 self.execution_started_step = int(completed_step)
                 self.active_execution_action = "BACKTRACK"
                 self.active_execution_decision_index = int(decision_index)
@@ -724,6 +970,24 @@ class LaViRABoundedEpisodeController:
                     f"decision {decision_index} FMM path was not accepted "
                     "for locomotion."
                 )
+            self._begin_active_goal(
+                action="NAVIGATE",
+                decision_index=decision_index,
+                goal_world_xy=np.asarray(
+                    probe.navigation_map.safe_target_world_xy,
+                    dtype=np.float64,
+                ),
+                execution_max_path_m=float(
+                    getattr(
+                        self.args_cli,
+                        "fmm_execute_max_path_m",
+                        6.0,
+                    )
+                ),
+                completed_step=completed_step,
+                step_dt=step_dt,
+                initial_fmm_plan=probe.fmm_plan,
+            )
             self.execution_started_step = int(completed_step)
             self.active_execution_action = "NAVIGATE"
             self.active_execution_decision_index = int(decision_index)
@@ -772,6 +1036,153 @@ class LaViRABoundedEpisodeController:
         if not probe.completed:
             raise RuntimeError(f"decision {decision_index} probe did not complete.")
         return probe
+
+    def _apply_global_map_to_probe(
+        self,
+        probe: NavigationDecisionOfflineProbe,
+        *,
+        action: str,
+        plan_target: bool,
+    ) -> None:
+        """Fuse this decision and replace local planning with the full map."""
+
+        state = self.global_map_state
+        if state is None:
+            return
+        if probe.bundle is None:
+            raise RuntimeError("Global mapping requires the current FrameBundle.")
+
+        # Reuse the already projected current observation when available. For a
+        # BACKTRACK response the offline probe intentionally skipped target map
+        # construction, so build a target-independent observation here.
+        if probe.navigation_map is not None:
+            state.integrate_grid_map(probe.navigation_map)
+        else:
+            state.integrate_bundle(probe.bundle)
+
+        planning_map: NavigationGridMap | None = None
+        if plan_target and action in {"NAVIGATE", "STOP"}:
+            if probe.target_projection is None:
+                raise RuntimeError(
+                    f"{action} global planning requires a valid target projection."
+                )
+            planning_map = state.build_navigation_grid_map(
+                projection=probe.target_projection
+            )
+            if planning_map.safe_target_cell_rc is None:
+                raise RuntimeError(
+                    f"{action} target has no reachable cell on the cumulative "
+                    "global map."
+                )
+            probe.navigation_map = planning_map
+            probe.fmm_plan = build_fmm_plan(
+                planning_map,
+                fmm_planner_config_from_args(self.args_cli),
+            )
+
+        if probe.output_dir is not None:
+            global_files = save_lavira_global_map_debug(
+                Path(probe.output_dir),
+                state,
+                planning_map,
+            )
+            fmm_files: dict[str, str] | None = None
+            if planning_map is not None and probe.fmm_plan is not None:
+                global_planning_dir = (
+                    Path(probe.output_dir) / "global_planning"
+                )
+                global_planning_dir.mkdir(parents=True, exist_ok=True)
+                fmm_files = save_fmm_plan_debug(
+                    global_planning_dir,
+                    planning_map,
+                    probe.fmm_plan,
+                )
+            self._record_global_planning_interpretation(
+                probe,
+                action=action,
+                planning_map=planning_map,
+                fmm_plan=probe.fmm_plan if planning_map is not None else None,
+                global_files=global_files,
+                fmm_files=fmm_files,
+            )
+        print(
+            "[LAVIRA GLOBAL MAP] fused decision observation: "
+            f"updates={state.update_count} "
+            f"origin={state.origin_world_xy.tolist()} "
+            f"explored={np.count_nonzero(state.full_map[1])} cells."
+        )
+
+    def _record_global_planning_interpretation(
+        self,
+        probe: NavigationDecisionOfflineProbe,
+        *,
+        action: str,
+        planning_map: NavigationGridMap | None,
+        fmm_plan: FMMPlan | None,
+        global_files: dict[str, str],
+        fmm_files: dict[str, str] | None,
+    ) -> None:
+        """Append the effective execution map/plan without rewriting local probe data."""
+
+        if probe.output_dir is None or self.global_map_state is None:
+            return
+        path = Path(probe.output_dir) / "response_interpretation.json"
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            payload = {}
+        state = self.global_map_state
+        payload["global_map_fusion"] = {
+            "status": "ok",
+            "map_mode": self.navigation_map_mode,
+            "files": global_files,
+            "update_count": state.update_count,
+            "origin_world_xy": state.origin_world_xy.tolist(),
+            "shape_rc": [state.cells, state.cells],
+            "channel_names": [
+                "obstacle",
+                "explored",
+                "current_location",
+                "past_locations",
+            ],
+        }
+        if planning_map is None or fmm_plan is None:
+            payload["global_execution_plan"] = {
+                "status": "not_run",
+                "action": action,
+                "reason": "This bounded response does not execute a target plan.",
+            }
+        else:
+            payload["global_execution_plan"] = {
+                "status": "ok",
+                "action": action,
+                "target_selection_strategy": (
+                    planning_map.target_selection_strategy
+                ),
+                "safe_target_cell_rc": list(
+                    planning_map.safe_target_cell_rc
+                ),
+                "safe_target_world_xy": (
+                    planning_map.safe_target_world_xy.tolist()
+                ),
+                "start_cell_rc": list(fmm_plan.start_cell_rc),
+                "goal_cell_rc": list(fmm_plan.goal_cell_rc),
+                "path_length_m": fmm_plan.path_length_m,
+                "waypoint_count": int(
+                    fmm_plan.waypoints_world_xy.shape[0]
+                ),
+                "lavira_short_term_goal_cell_rc": list(
+                    fmm_plan.lavira_short_term_goal_cell_rc
+                ),
+                "files": {
+                    key: f"global_planning/{value}"
+                    for key, value in (fmm_files or {}).items()
+                },
+            }
+        path.write_text(
+            json.dumps(payload, indent=2, ensure_ascii=False),
+            encoding="utf-8",
+        )
 
     def _candidate_from_probe(
         self, probe: NavigationDecisionOfflineProbe
@@ -827,12 +1238,450 @@ class LaViRABoundedEpisodeController:
         """LaViRA 默认 15 cells × 0.05 m/cell = 0.75 m。"""
         return float(self.args_cli.lavira_stop_reached_threshold_m)
 
+    def _begin_active_goal(
+        self,
+        *,
+        action: str,
+        decision_index: int,
+        goal_world_xy: np.ndarray,
+        execution_max_path_m: float,
+        completed_step: int,
+        step_dt: float,
+        target_waypoint_id: int | None = None,
+        initial_fmm_plan: FMMPlan | None = None,
+    ) -> None:
+        """Retain one model-selected goal across online map/FMM refreshes."""
+
+        goal = np.asarray(goal_world_xy, dtype=np.float64)
+        if goal.shape != (2,) or not np.all(np.isfinite(goal)):
+            raise ValueError("Active navigation goal must contain finite world XY.")
+        if action not in {"NAVIGATE", "BACKTRACK", "STOP"}:
+            raise ValueError(f"Unsupported active navigation action {action!r}.")
+        if float(execution_max_path_m) <= 0.0:
+            raise ValueError("Active navigation maximum path length must be positive.")
+        self.active_goal = ActiveNavigationGoal(
+            action=action,
+            decision_index=int(decision_index),
+            goal_world_xy=goal.copy(),
+            execution_max_path_m=float(execution_max_path_m),
+            target_waypoint_id=target_waypoint_id,
+            last_fmm_plan=initial_fmm_plan,
+        )
+        current_time_s = float(completed_step) * float(step_dt)
+        self._last_online_map_time_s = current_time_s
+        self._last_online_replan_time_s = current_time_s
+        self._reset_collision_window()
+
+    def _maybe_update_online_navigation(
+        self,
+        camera_rig: FourViewCameraRig,
+        *,
+        completed_step: int,
+        step_dt: float,
+        path_follower,
+        command_controller,
+        switch_state,
+        hot_swap_path: Callable[[FMMPlan, float], bool] | None,
+        applied_velocity_command: np.ndarray | None,
+    ) -> None:
+        """Fuse a low-rate observation and replan to the unchanged model goal."""
+
+        state = self.global_map_state
+        active = self.active_goal
+        if state is None or active is None:
+            self._fail(
+                "online navigation has no cumulative map or active goal.",
+                path_follower,
+                command_controller,
+                switch_state,
+            )
+            return
+
+        current_time_s = float(completed_step) * float(step_dt)
+        collision_detected = self._update_online_collision_map(
+            completed_step=completed_step,
+            current_time_s=current_time_s,
+            path_follower=path_follower,
+            switch_state=switch_state,
+            applied_velocity_command=applied_velocity_command,
+        )
+
+        map_interval_s = float(
+            self.args_cli.lavira_online_mapping_interval_s
+        )
+        map_due = (
+            self._last_online_map_time_s is None
+            or current_time_s - self._last_online_map_time_s
+            >= map_interval_s - 1.0e-9
+        )
+        map_updated = False
+        if map_due:
+            # Advance the scheduler even on a failed render so a transient
+            # camera error cannot trigger an expensive retry every physics step.
+            self._last_online_map_time_s = current_time_s
+            try:
+                bundle = camera_rig.capture(
+                    sim_step=int(completed_step),
+                    timestamp=current_time_s,
+                )
+                state.integrate_bundle(bundle)
+                self.online_map_update_count += 1
+                map_updated = True
+                self._record_online_event(
+                    "map_update",
+                    completed_step,
+                    {
+                        "bundle_id": int(bundle.bundle_id),
+                        "global_update_count": int(state.update_count),
+                        "explored_cells": int(
+                            np.count_nonzero(state.full_map[1])
+                        ),
+                        "obstacle_cells": int(
+                            np.count_nonzero(state.full_map[0])
+                        ),
+                        "collision_cells": int(
+                            np.count_nonzero(state.collision_map)
+                        ),
+                    },
+                )
+                print(
+                    "[LAVIRA ONLINE] fused execution observation: "
+                    f"bundle={bundle.bundle_id} "
+                    f"updates={state.update_count} "
+                    f"explored={np.count_nonzero(state.full_map[1])}."
+                )
+            except Exception as exc:
+                self._record_online_event(
+                    "map_update_failed",
+                    completed_step,
+                    {"error": str(exc)},
+                )
+                print(
+                    "[WARN] [LAVIRA ONLINE] map update failed; continuing the "
+                    f"last validated path: {exc}"
+                )
+
+        replan_interval_s = float(
+            self.args_cli.lavira_online_replan_interval_s
+        )
+        periodic_replan_due = (
+            map_updated
+            and (
+                self._last_online_replan_time_s is None
+                or current_time_s - self._last_online_replan_time_s
+                >= replan_interval_s - 1.0e-9
+            )
+        )
+        if not collision_detected and not periodic_replan_due:
+            return
+
+        self._last_online_replan_time_s = current_time_s
+        try:
+            if hot_swap_path is None:
+                raise RuntimeError(
+                    "runner did not provide an online FMM hot-swap callback."
+                )
+            if active.action == "BACKTRACK":
+                planning_map = state.build_navigation_grid_map(
+                    historical_target_world_xy=active.goal_world_xy
+                )
+            else:
+                planning_map = state.build_navigation_grid_map(
+                    stable_target_world_xy=active.goal_world_xy
+                )
+            if planning_map.safe_target_cell_rc is None:
+                raise RuntimeError(
+                    "active world goal has no reachable cell on the latest map."
+                )
+            fmm_plan = build_fmm_plan(
+                planning_map,
+                fmm_planner_config_from_args(self.args_cli),
+            )
+            if not bool(
+                hot_swap_path(
+                    fmm_plan,
+                    active.execution_max_path_m,
+                )
+            ):
+                raise RuntimeError(
+                    "online FMM path was rejected by the active follower."
+                )
+
+            active.replan_count += 1
+            active.last_replan_step = int(completed_step)
+            active.last_fmm_plan = fmm_plan
+            self.online_replan_count += 1
+            if active.action == "NAVIGATE" and self.pending_waypoint is not None:
+                self.pending_waypoint.safe_target_world_xy = np.asarray(
+                    fmm_plan.goal_world_xy, dtype=np.float64
+                ).copy()
+                self.pending_waypoint.fmm_waypoints_world_xy = np.asarray(
+                    fmm_plan.waypoints_world_xy, dtype=np.float64
+                ).copy()
+            elif active.action == "STOP":
+                self.stop_goal_world_xy = np.asarray(
+                    fmm_plan.goal_world_xy, dtype=np.float64
+                ).copy()
+                if self.stop_event is not None:
+                    self.stop_event["stop_goal_world_xy"] = (
+                        self.stop_goal_world_xy.tolist()
+                    )
+                    self.stop_event["online_replan_count"] = active.replan_count
+                    self._save_stop_event()
+            elif active.action == "BACKTRACK" and self.backtrack_event is not None:
+                self.backtrack_event["online_replan_count"] = active.replan_count
+                self.backtrack_event["latest_path_length_m"] = (
+                    fmm_plan.path_length_m
+                )
+                self._save_backtrack_event()
+
+            self._record_online_event(
+                "fmm_replan",
+                completed_step,
+                {
+                    "trigger": (
+                        "collision"
+                        if collision_detected
+                        else "periodic"
+                    ),
+                    "action": active.action,
+                    "goal_world_xy": active.goal_world_xy.tolist(),
+                    "safe_goal_world_xy": (
+                        fmm_plan.goal_world_xy.tolist()
+                    ),
+                    "path_length_m": float(fmm_plan.path_length_m),
+                    "waypoint_count": int(
+                        fmm_plan.waypoints_world_xy.shape[0]
+                    ),
+                    "replan_count": int(active.replan_count),
+                },
+            )
+            self._save_online_latest_debug(planning_map, fmm_plan)
+            print(
+                "[LAVIRA ONLINE] replanned unchanged goal: "
+                f"action={active.action} trigger="
+                f"{'collision' if collision_detected else 'periodic'} "
+                f"count={active.replan_count} "
+                f"path={fmm_plan.path_length_m:.3f}m."
+            )
+        except Exception as exc:
+            self._record_online_event(
+                "fmm_replan_failed",
+                completed_step,
+                {
+                    "trigger": (
+                        "collision"
+                        if collision_detected
+                        else "periodic"
+                    ),
+                    "error": str(exc),
+                },
+            )
+            if collision_detected:
+                self._fail(
+                    (
+                        "collision-triggered online FMM replan failed: "
+                        f"{exc}"
+                    ),
+                    path_follower,
+                    command_controller,
+                    switch_state,
+                )
+                return
+            print(
+                "[WARN] [LAVIRA ONLINE] periodic FMM replan failed; "
+                f"continuing the last validated path: {exc}"
+            )
+
+    def _update_online_collision_map(
+        self,
+        *,
+        completed_step: int,
+        current_time_s: float,
+        path_follower,
+        switch_state,
+        applied_velocity_command: np.ndarray | None,
+    ) -> bool:
+        """Infer a persistent collision only from sustained commanded non-progress."""
+
+        state = self.global_map_state
+        pose = path_follower.current_robot_pose()
+        command = (
+            None
+            if applied_velocity_command is None
+            else np.asarray(applied_velocity_command, dtype=np.float64).reshape(-1)
+        )
+        valid_motion_state = (
+            state is not None
+            and getattr(pose, "valid", False)
+            and getattr(switch_state, "active_mode", None) == "locomotion"
+            and getattr(switch_state, "transition_mode", None) == "none"
+            and command is not None
+            and command.size >= 2
+            and np.all(np.isfinite(command[:2]))
+        )
+        if not valid_motion_state:
+            self._reset_collision_window()
+            return False
+
+        planar_command = command[:2]
+        command_speed = float(np.linalg.norm(planar_command))
+        if command_speed < float(
+            self.args_cli.lavira_collision_command_speed_m_s
+        ):
+            self._reset_collision_window()
+            return False
+
+        direction_base = planar_command / command_speed
+        cy = math.cos(float(pose.yaw))
+        sy = math.sin(float(pose.yaw))
+        direction_world = np.array(
+            [
+                cy * direction_base[0] - sy * direction_base[1],
+                sy * direction_base[0] + cy * direction_base[1],
+            ],
+            dtype=np.float64,
+        )
+        current_xy = np.array([float(pose.x), float(pose.y)], dtype=np.float64)
+        if (
+            self._collision_window_start_time_s is None
+            or self._collision_window_start_xy is None
+        ):
+            self._collision_window_start_time_s = float(current_time_s)
+            self._collision_window_start_xy = current_xy
+            self._collision_direction_world_xy = direction_world
+            return False
+
+        previous_direction = self._collision_direction_world_xy
+        if (
+            previous_direction is not None
+            and float(np.dot(previous_direction, direction_world))
+            < math.cos(math.radians(45.0))
+        ):
+            # A strong commanded-direction change is a turn/reorientation, not
+            # one continuous failed translation window.
+            self._collision_window_start_time_s = float(current_time_s)
+            self._collision_window_start_xy = current_xy
+            self._collision_direction_world_xy = direction_world
+            return False
+        self._collision_direction_world_xy = direction_world
+        elapsed = (
+            float(current_time_s) - self._collision_window_start_time_s
+        )
+        if elapsed < float(self.args_cli.lavira_collision_window_s):
+            return False
+
+        progress = float(
+            np.linalg.norm(current_xy - self._collision_window_start_xy)
+        )
+        if progress >= float(
+            self.args_cli.lavira_collision_min_progress_m
+        ):
+            self._collision_window_start_time_s = float(current_time_s)
+            self._collision_window_start_xy = current_xy
+            return False
+
+        direction = self._collision_direction_world_xy
+        collision_world_xy = current_xy + direction * float(
+            self.args_cli.lavira_collision_mark_distance_m
+        )
+        added_cells = state.mark_collision_world_xy(
+            collision_world_xy,
+            radius_m=float(
+                self.args_cli.lavira_collision_mark_radius_m
+            ),
+        )
+        self.online_collision_count += 1
+        self._record_online_event(
+            "collision",
+            completed_step,
+            {
+                "robot_world_xy": current_xy.tolist(),
+                "collision_world_xy": collision_world_xy.tolist(),
+                "command_speed_m_s": command_speed,
+                "window_s": elapsed,
+                "progress_m": progress,
+                "new_collision_cells": int(added_cells),
+                "collision_count": int(self.online_collision_count),
+            },
+        )
+        print(
+            "[WARN] [LAVIRA ONLINE] commanded non-progress marked collision: "
+            f"progress={progress:.3f}m/{elapsed:.2f}s "
+            f"point={collision_world_xy.tolist()} "
+            f"new_cells={added_cells}."
+        )
+        self._collision_window_start_time_s = float(current_time_s)
+        self._collision_window_start_xy = current_xy
+        return True
+
+    def _reset_collision_window(self) -> None:
+        self._collision_window_start_time_s = None
+        self._collision_window_start_xy = None
+        self._collision_direction_world_xy = None
+
+    def _record_online_event(
+        self,
+        event_type: str,
+        completed_step: int,
+        payload: dict,
+    ) -> None:
+        event = {
+            "event_index": len(self.online_events),
+            "event_type": str(event_type),
+            "completed_step": int(completed_step),
+            **payload,
+        }
+        self.online_events.append(event)
+        if self.current_probe is None or self.current_probe.output_dir is None:
+            return
+        path = Path(self.current_probe.output_dir) / "online_navigation.json"
+        path.write_text(
+            json.dumps(
+                {
+                    "enabled": self.online_navigation,
+                    "map_update_count": self.online_map_update_count,
+                    "replan_count": self.online_replan_count,
+                    "collision_count": self.online_collision_count,
+                    "active_goal": (
+                        self.active_goal.to_dict()
+                        if self.active_goal is not None
+                        else None
+                    ),
+                    "events": self.online_events,
+                },
+                indent=2,
+                ensure_ascii=False,
+            ),
+            encoding="utf-8",
+        )
+
+    def _save_online_latest_debug(
+        self,
+        planning_map: NavigationGridMap,
+        fmm_plan: FMMPlan,
+    ) -> None:
+        if (
+            self.current_probe is None
+            or self.current_probe.output_dir is None
+            or self.global_map_state is None
+        ):
+            return
+        output_dir = Path(self.current_probe.output_dir) / "online_latest"
+        save_lavira_global_map_debug(
+            output_dir,
+            self.global_map_state,
+            planning_map,
+        )
+        save_fmm_plan_debug(output_dir, planning_map, fmm_plan)
+
     def _start_stop_action(
         self,
         probe: NavigationDecisionOfflineProbe,
         *,
         decision_index: int,
         completed_step: int,
+        step_dt: float,
         path_follower,
         command_controller,
         switch_state,
@@ -882,6 +1731,21 @@ class LaViRABoundedEpisodeController:
         self._save_stop_event()
         self.active_execution_action = "STOP"
         self.active_execution_decision_index = int(decision_index)
+        self._begin_active_goal(
+            action="STOP",
+            decision_index=decision_index,
+            goal_world_xy=self.stop_goal_world_xy,
+            execution_max_path_m=float(
+                getattr(
+                    self.args_cli,
+                    "fmm_execute_max_path_m",
+                    6.0,
+                )
+            ),
+            completed_step=completed_step,
+            step_dt=step_dt,
+            initial_fmm_plan=probe.fmm_plan,
+        )
 
         if (
             initial_distance is not None
@@ -1079,18 +1943,40 @@ class LaViRABoundedEpisodeController:
         self.backtrack_target_waypoint = None
         self.backtrack_request = None
         self.stop_goal_world_xy = None
+        self.active_goal = None
+        self._last_online_map_time_s = None
+        self._last_online_replan_time_s = None
+        self._reset_collision_window()
 
     def _save_controller_status(self) -> None:
         if self.current_probe is None or self.current_probe.output_dir is None:
             return
         payload = {
             "state": self.state,
+            "navigation_map_mode": self.navigation_map_mode,
+            "global_map": (
+                self.global_map_state.to_metadata()
+                if self.global_map_state is not None
+                and self.global_map_state.initialized
+                else None
+            ),
             "max_decisions": self.max_decisions,
             "decisions_completed": self.decisions_completed,
             "history_count": len(self.history),
             "terminal_response": self.terminal_response,
             "pending_action": self.pending_action,
             "active_execution_action": self.active_execution_action,
+            "online_navigation": {
+                "enabled": self.online_navigation,
+                "map_update_count": self.online_map_update_count,
+                "replan_count": self.online_replan_count,
+                "collision_count": self.online_collision_count,
+                "active_goal": (
+                    self.active_goal.to_dict()
+                    if self.active_goal is not None
+                    else None
+                ),
+            },
             "backtrack_event": self.backtrack_event,
             "stop_event": self.stop_event,
             "failure_reason": self.failure_reason,

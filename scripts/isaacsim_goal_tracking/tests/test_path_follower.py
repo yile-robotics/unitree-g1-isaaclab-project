@@ -161,6 +161,32 @@ class FMMPathExecutionPreparationTest(unittest.TestCase):
         self.assertIsNone(controller.command)
         self.assertTrue(switch.stand_requested)
 
+    def test_active_path_can_be_hot_swapped_without_stopping(self) -> None:
+        follower = WaypointPathFollower(_raw_env(0.0, 0.0), None, [], _args())
+        follower.replace_waypoints(
+            [Waypoint(0.0, 0.0, 0.0), Waypoint(1.0, 0.0, 0.0)],
+            source="initial_fmm",
+            cross_track_abort_m=0.4,
+            tilt_abort_rad=0.5,
+        )
+        follower.start()
+
+        follower.replace_waypoints_while_active(
+            [
+                Waypoint(0.0, 0.0, math.pi / 4.0),
+                Waypoint(0.5, 0.5, math.pi / 4.0),
+            ],
+            source="online_fmm",
+            cross_track_abort_m=0.4,
+            tilt_abort_rad=0.5,
+        )
+
+        self.assertTrue(follower.enabled)
+        self.assertFalse(follower.goal_reached)
+        self.assertIsNone(follower.abort_reason)
+        self.assertEqual(follower.path_source, "online_fmm")
+        self.assertAlmostEqual(follower.waypoints[-1].y, 0.5)
+
 
 if __name__ == "__main__":
     unittest.main()

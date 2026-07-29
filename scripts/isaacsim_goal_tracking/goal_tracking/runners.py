@@ -162,6 +162,57 @@ def start_lavira_fmm_path_execution(
     return True
 
 
+def hot_swap_lavira_fmm_path_execution(
+    fmm_plan,
+    execution_max_path_m: float,
+    path_follower: WaypointPathFollower,
+    path_visualizer: PathVisualizer,
+    args_cli,
+) -> bool:
+    """Replace an active FMM path without zeroing commands or switching policy."""
+
+    current_pose = path_follower.current_robot_pose()
+    prepared = prepare_fmm_path_for_execution(
+        fmm_plan,
+        current_pose,
+        max_start_drift_m=float(args_cli.fmm_execute_start_tolerance_m),
+        max_path_length_m=float(execution_max_path_m),
+    )
+    final = prepared.waypoints[-1]
+    final_distance = float(
+        np.hypot(final.x - current_pose.x, final.y - current_pose.y)
+    )
+    if final_distance <= float(args_cli.goal_tolerance):
+        # The episode controller owns NAVIGATE/BACKTRACK/STOP completion.  Keep
+        # the existing short remainder so its normal threshold logic can finish.
+        return True
+
+    source = (
+        f"lavira_online_replan_bundle_{int(fmm_plan.bundle_id):06d}"
+    )
+    path_follower.replace_waypoints_while_active(
+        prepared.waypoints,
+        source=source,
+        cross_track_abort_m=float(args_cli.fmm_execute_cross_track_abort_m),
+        tilt_abort_rad=float(args_cli.fmm_execute_tilt_abort_rad),
+        velocity_limits=(
+            float(args_cli.fmm_execute_max_vx),
+            float(args_cli.fmm_execute_max_vy),
+            float(args_cli.fmm_execute_max_wz),
+        ),
+        lookahead_distance_m=float(args_cli.fmm_execute_lookahead_m),
+    )
+    path_visualizer.draw_static_path(path_follower.waypoints)
+    print(
+        "[LAVIRA ONLINE] Hot-swapped FMM path: "
+        f"bundle={fmm_plan.bundle_id} "
+        f"length={prepared.path_length_m:.3f}m "
+        f"waypoints={len(prepared.waypoints)} "
+        f"start_drift={prepared.start_drift_m:.3f}m."
+    )
+    return True
+
+
 def get_keyboard_command(keyboard, raw_env, num_envs: int) -> torch.Tensor:
     """读取 IsaacLab Se2Keyboard 的连续命令，并扩展到所有 env。"""
     command = keyboard.advance().to(device=raw_env.device, dtype=torch.float32)
@@ -647,6 +698,18 @@ def run_switch(env, env_cfg, args_cli, simulation_app) -> None:
                         command_controller,
                         switch_state,
                         args_cli,
+                    ),
+                    hot_swap_path=lambda plan, max_path_m: (
+                        hot_swap_lavira_fmm_path_execution(
+                            plan,
+                            max_path_m,
+                            path_follower,
+                            path_visualizer,
+                            args_cli,
+                        )
+                    ),
+                    applied_velocity_command=(
+                        command_for_env[0].detach().cpu().numpy()
                     ),
                 )
                 print_state(
