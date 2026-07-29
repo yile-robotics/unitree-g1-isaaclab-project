@@ -173,11 +173,20 @@ def make_args():
         lavira_history_max_decisions=3,
         lavira_decision_warmup_steps=0,
         lavira_history_execution_timeout=30.0,
+        lavira_online_navigation=False,
+        lavira_online_mapping_interval_s=1.0,
+        lavira_online_replan_interval_s=1.0,
+        lavira_collision_command_speed_m_s=0.12,
+        lavira_collision_window_s=0.75,
+        lavira_collision_min_progress_m=0.04,
+        lavira_collision_mark_distance_m=0.45,
+        lavira_collision_mark_radius_m=0.15,
         lavira_stop_reached_threshold_m=0.75,
         lavira_backtrack_max_path_m=6.0,
         lavira_backtrack_strategy="stored_reverse",
         lavira_history_settle_seconds=0.2,
         fmm_execute_tilt_abort_rad=0.5,
+        fmm_execute_max_path_m=6.0,
     )
 
 
@@ -738,6 +747,114 @@ class LaViRAEpisodeHistoryTest(unittest.TestCase):
         self.assertEqual(controller.backtrack_event["status"], "arrived")
         self.assertEqual(controller.backtrack_event["history_count_before"], 2)
         self.assertEqual(controller.backtrack_event["history_count_after"], 1)
+
+    def test_online_collision_requires_sustained_commanded_non_progress(self) -> None:
+        controller = LaViRABoundedEpisodeController(make_args())
+        controller.global_map_state = SimpleNamespace(
+            mark_collision_world_xy=Mock(return_value=7)
+        )
+        path = FakePathFollower()
+        switch = FakeSwitchState()
+        switch.active_mode = "locomotion"
+
+        first = controller._update_online_collision_map(
+            completed_step=10,
+            current_time_s=1.0,
+            path_follower=path,
+            switch_state=switch,
+            applied_velocity_command=np.array([0.2, 0.0, 0.0]),
+        )
+        second = controller._update_online_collision_map(
+            completed_step=18,
+            current_time_s=1.8,
+            path_follower=path,
+            switch_state=switch,
+            applied_velocity_command=np.array([0.2, 0.0, 0.0]),
+        )
+
+        self.assertFalse(first)
+        self.assertTrue(second)
+        controller.global_map_state.mark_collision_world_xy.assert_called_once()
+        np.testing.assert_allclose(
+            controller.global_map_state.mark_collision_world_xy.call_args.args[0],
+            [0.45, 0.0],
+        )
+        self.assertEqual(controller.online_collision_count, 1)
+
+    @patch("goal_tracking.lavira_episode.fmm_planner_config_from_args")
+    @patch("goal_tracking.lavira_episode.build_fmm_plan")
+    def test_online_map_update_replans_same_stable_world_goal(
+        self,
+        build_plan,
+        planner_config,
+    ) -> None:
+        controller = LaViRABoundedEpisodeController(make_args())
+        controller.online_navigation = True
+        planning_map = SimpleNamespace(
+            safe_target_cell_rc=(2, 3),
+        )
+        state = SimpleNamespace(
+            integrate_bundle=Mock(),
+            build_navigation_grid_map=Mock(return_value=planning_map),
+            update_count=4,
+            full_map=np.zeros((4, 8, 8), dtype=np.uint8),
+            collision_map=np.zeros((8, 8), dtype=bool),
+        )
+        controller.global_map_state = state
+        initial_plan = SimpleNamespace(bundle_id=1)
+        controller._begin_active_goal(
+            action="NAVIGATE",
+            decision_index=0,
+            goal_world_xy=np.array([1.25, -0.5]),
+            execution_max_path_m=6.0,
+            completed_step=0,
+            step_dt=0.1,
+            initial_fmm_plan=initial_plan,
+        )
+        replanned = SimpleNamespace(
+            bundle_id=9,
+            goal_world_xy=np.array([1.25, -0.5]),
+            waypoints_world_xy=np.array(
+                [[0.0, 0.0], [1.25, -0.5]], dtype=np.float64
+            ),
+            path_length_m=1.35,
+        )
+        build_plan.return_value = replanned
+        camera = SimpleNamespace(
+            capture=Mock(return_value=SimpleNamespace(bundle_id=9))
+        )
+        hot_swap = Mock(return_value=True)
+        path = FakePathFollower()
+        command = FakeCommandController()
+        switch = FakeSwitchState()
+
+        controller._maybe_update_online_navigation(
+            camera,
+            completed_step=10,
+            step_dt=0.1,
+            path_follower=path,
+            command_controller=command,
+            switch_state=switch,
+            hot_swap_path=hot_swap,
+            applied_velocity_command=np.zeros(3),
+        )
+
+        camera.capture.assert_called_once()
+        state.integrate_bundle.assert_called_once()
+        np.testing.assert_allclose(
+            state.build_navigation_grid_map.call_args.kwargs[
+                "stable_target_world_xy"
+            ],
+            [1.25, -0.5],
+        )
+        build_plan.assert_called_once_with(
+            planning_map,
+            planner_config.return_value,
+        )
+        hot_swap.assert_called_once_with(replanned, 6.0)
+        self.assertEqual(controller.online_map_update_count, 1)
+        self.assertEqual(controller.online_replan_count, 1)
+        self.assertEqual(controller.active_goal.replan_count, 1)
 
 
 if __name__ == "__main__":

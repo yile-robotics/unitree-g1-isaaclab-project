@@ -1,6 +1,6 @@
 # Isaac Sim + Unitree G1 + LaViRA 导航系统
 
-更新时间：2026-07-26
+更新时间：2026-07-29
 
 本文是 `scripts/isaacsim_goal_tracking` 的唯一权威说明，覆盖当前已经实现的功能、服务器接口、
 运行方法、输出文件、已验证结果和尚未完成的部分。
@@ -11,6 +11,7 @@
 goal_tracking/lavira_protocol.py
 goal_tracking/lavira_offline.py
 goal_tracking/lavira_episode.py
+goal_tracking/lavira_global_mapping.py
 goal_tracking/config.py
 isaacsim_path_follwing.py
 ```
@@ -27,13 +28,19 @@ Isaac Sim 同步四方向 RGB-D
   -> action / direction / target / bbox_2d / waypoint
   -> direction 对应的原 FrameBundle depth + K + 相机位姿
   -> bbox 底边中点三维投影
-  -> 四路 depth 局部 occupancy map
+  -> 四路 depth 当前观测
+  -> 固定世界坐标的 episode 累计全局地图
+  -> obstacle / explored / current / past 通道 max 融合
   -> G1 尺寸障碍膨胀和安全目标修正
   -> scikit-fmm 距离场和无碰撞 waypoint
   -> 原 WaypointPathFollower
   -> 原 SwitchCommandController
   -> 原 29DOF locomotion ONNX
   -> G1 运动
+  -> 可选：行走期间低频抓取四方向 RGB-D 并融合到同一 full map
+  -> 可选：持续命令但无位移时把机器人前方写入独立 collision_map
+  -> 可选：对同一个 NAVIGATE/BACKTRACK/STOP 世界目标周期重新运行 FMM
+  -> 可选：运动中热替换路径，不触发 stand/locomotion 往返切换
   -> 到达短期目标后归零并平滑切回 stand
   -> 稳定 0.8s 后提交当前 waypoint
   -> 重新抓取四视角
@@ -46,16 +53,23 @@ Isaac Sim 同步四方向 RGB-D
 当前准确定位：
 
 ```text
-已实现：一次模型决策 + 一次局部规划 + 一次短路径执行
+已实现：一次模型决策 + 累计全局地图规划 + 一次短路径执行
 已实现：decision_000 执行成功后生成 history 并自动请求 decision_001
 已实现：有限多轮 NAVIGATE/BACKTRACK/STOP controller，默认三次请求
-已实现：BACKTRACK 默认按历史 waypoint 世界坐标在当前地图重新 FMM，并立即截断 history
+已实现：BACKTRACK 默认按历史 waypoint 世界坐标在累计全局地图重新 FMM，并立即截断 history
 已实现：LaViRA 风格 STOP 最终接近、稳定 stand 和 episode 终止
-已验证：默认 `replan_world_goal` 下 Qwen 两次选择 waypoint=0，G1 均重新 FMM 并成功返回
+已实现：可选的执行期四视图在线全局地图融合
+已实现：适配 G1 连续控制的在线 collision map
+已实现：三种 action 共用的稳定活动目标、周期 FMM 和运动中路径热替换
+已验证：累计全局地图下两次 NAVIGATE、history 提交、Qwen 主动 STOP 和稳定 stand
+已验证：累计全局地图下真实 Qwen 两次选择 waypoint=0，均重新 FMM、截断 history 并成功返回
+已验证：在线模式下真实 Qwen 连续四次 NAVIGATE、20 次执行期地图更新/FMM 热替换和主动 STOP
+已验证（累计全局地图加入前）：默认 `replan_world_goal` 下 Qwen 两次选择 waypoint=0 并成功返回
 已验证：旧 `stored_reverse` 策略下真实服务器返回 waypoint=1，G1 沿 1.962m 反向路径到达
 已验证：mock STOP 下的“目标已在阈值内”无移动终止
 已验证：mock STOP 下的 FMM 最终接近、真实 G1 locomotion、0.75m 停止和 stand
-未实现：无限 episode、ground-truth task success 和 SPL 等评测
+待真实验证：在线更新开启时的 Qwen BACKTRACK 返回过程和真实 collision 绕行
+未实现：Grounded-SAM 语义通道、无限 episode、ground-truth task success 和 SPL 等评测
 ```
 
 默认 `--lavira_decision_probe` 仍然只请求 `decision_000`；需要多轮执行时使用
@@ -63,7 +77,479 @@ Isaac Sim 同步四方向 RGB-D
 NAVIGATE/BACKTRACK，每次成功后更新 history，第三次普通响应只保存。STOP 是终止动作，
 即使出现在第三次也会执行最终接近。`--lavira_history_max_decisions` 可以调整边界。
 
-### 1.1 2026-07-26：BACKTRACK 对齐 `qwen_end2end`
+### 1.1 2026-07-27：加入 LaViRA 兼容的累计全局地图
+
+bounded episode 的默认地图模式现在是：
+
+```text
+--nav_map_mode lavira_compatible_global
+```
+
+第一轮 `FrameBundle` 自动读取实际机器人世界坐标，并把该位置放在固定 full map 的中心。之后
+机器人移动不会改变 full map 原点；每轮四路 RGB-D 当前观测会转换到这个固定坐标系，并用
+channel-wise `max` 融合。因此更换 Isaac 场景或修改 `--spawn` 不需要改地图代码。
+
+当前全局通道与 LaViRA 前四个通道对应：
+
+```text
+channel 0 = obstacle
+channel 1 = explored
+channel 2 = current robot location
+channel 3 = past robot locations
+```
+
+默认 `24m / 0.05m = 480 × 480` full map，`--nav_global_downscaling 2` 产生
+`240 × 240` local window；local window 每 25 次地图更新重新居中。地图物理尺寸和分辨率都
+是运行时参数，不依赖固定 house 或固定起点。
+
+三种模型 action 使用同一个累计状态：
+
+```text
+NAVIGATE / STOP:
+  Qwen bbox -> depth 世界坐标 -> 累计全局 traversability -> FMM
+
+BACKTRACK:
+  Qwen 明确 waypoint id -> history decision_world_pose -> 同一累计全局图 -> FMM
+```
+
+Qwen 仍负责决定是否 `BACKTRACK` 以及返回哪个 waypoint；地图模块不会自行把 0/1/2 中的某个
+编号替模型选出来。接受 BACKTRACK 后 history 截断语义没有变化。
+
+新增参数：
+
+| 参数 | 默认值 | 作用 |
+| --- | --- | --- |
+| `--nav_map_mode` | `lavira_compatible_global` | 累计全局图；可切回 `local_current_bundle` |
+| `--nav_global_origin_mode` | `spawn_center` | 第一帧实际起点作为地图中心 |
+| `--nav_global_origin_world_x_m/y_m` | `None` | manual 模式下指定 full map 左下角 |
+| `--nav_global_downscaling` | `2` | full/local 边长比例 |
+| `--nav_global_center_reset_steps` | `25` | local window 重置频率 |
+| `--nav_global_unknown_space_policy` | `blocked` | G1 默认不进入未观测格；`lavira` 更接近原实现 |
+
+手动固定地图边界的例子：
+
+```bash
+--nav_global_origin_mode manual \
+--nav_global_origin_world_x_m -12.0 \
+--nav_global_origin_world_y_m -12.0
+```
+
+这里的 manual X/Y 是 full map 左下角，不是机器人的出生点；机器人出生点仍由 `--spawn`
+独立设置。如果机器人走出固定边界，controller 会明确报错并提示增大 `--nav_map_size_m` 或
+修改 manual origin。
+
+每轮输出新增：
+
+```text
+lavira_global_map.json
+lavira_global_map.npz
+lavira_global_map.png
+global_planning/fmm_plan.json
+global_planning/fmm_distance.npy
+global_planning/fmm_path.png
+```
+
+NPZ 保存 `full_map`、`one_step_full_map`、`local_map` 和累计 obstacle hits，便于核对旧地图
+是否保留、当前/历史位置通道和 FMM 输入。旧行为可以显式恢复：
+
+```bash
+--nav_map_mode local_current_bundle
+```
+
+与原版 LaViRA 仍有两个明确差异：当前只有几何四通道，没有 Grounded-SAM semantic category
+通道；Isaac 的地图更新使用独立低频 navigation tick，而不是把四相机建图塞进每个高频 G1
+physics step。代码没有伪造语义通道，默认也继续阻止 G1 进入未知区域。
+
+### 1.1.1 2026-07-29：执行期在线地图、collision map 和周期 FMM
+
+新增的在线闭环默认关闭，必须显式使用：
+
+```bash
+--lavira_online_navigation
+```
+
+开启后，controller 在 `EpisodeState.EXECUTING` 中保持模型选定的同一个世界目标：
+
+```text
+NAVIGATE -> 首次规划得到的 safe_target_world_xy
+BACKTRACK -> Qwen waypoint 对应的 decision_world_pose[:2,3]
+STOP -> 首次最终接近的 stop_goal_world_xy
+```
+
+在线更新不会增加 `decision_index`、不会发送新的 Qwen 请求、不会增加或截断 history。它只执行：
+
+```text
+每隔 mapping interval 抓取当前四路 RGB-D
+  -> 融合到固定 full map
+  -> 每隔 replan interval 对原活动目标重新运行 FMM
+  -> 原子热替换 WaypointPathFollower 路径
+```
+
+G1 collision 判定要求 locomotion 已接管、切换结束、实际平移命令超过阈值，并且在完整时间窗口
+内根节点 XY 进度仍低于阈值。纯旋转、低速 ramp、stand 和 policy 切换会重置检测窗口。确认的
+碰撞写入独立 `collision_map`，规划时执行：
+
+```python
+planning_traversable = lavira_traversable & ~collision_map
+```
+
+相机障碍通道仍保留 LaViRA 风格的 episode 内 `max` 累计，碰撞推断不会污染 `full_map[0]`。
+在线 BACKTRACK 只支持默认 `replan_world_goal`，防止显式选择 `stored_reverse` 后又被周期世界
+目标规划静默替换。
+
+新增参数：
+
+| 参数 | 默认值 | 作用 |
+| --- | ---: | --- |
+| `--lavira_online_navigation` | false | 开启执行期地图/collision/FMM 闭环 |
+| `--lavira_online_mapping_interval_s` | 1.0 | 四视图地图融合周期 |
+| `--lavira_online_replan_interval_s` | 1.0 | 周期 FMM 最小间隔 |
+| `--lavira_collision_command_speed_m_s` | 0.12 | 进入停滞检测的最小平移命令 |
+| `--lavira_collision_window_s` | 0.75 | 连续无进度检测窗口 |
+| `--lavira_collision_min_progress_m` | 0.04 | 窗口内最小实际 XY 进度 |
+| `--lavira_collision_mark_distance_m` | 0.45 | 碰撞圆心在运动方向前方距离 |
+| `--lavira_collision_mark_radius_m` | 0.15 | collision mask 标记半径 |
+
+每个正在执行的 decision 目录会新增或更新：
+
+```text
+online_navigation.json
+online_latest/lavira_global_map.json
+online_latest/lavira_global_map.npz
+online_latest/lavira_global_map.png
+online_latest/fmm_plan.json
+online_latest/fmm_distance.npy
+online_latest/fmm_path.png
+```
+
+`lavira_global_map.npz` 现在也包含独立的 `collision_map`。
+
+#### 2026-07-29 真实 Qwen + 在线全局地图/FMM/STOP 验证
+
+运行目录：
+
+```text
+outputs/isaacsim_goal_tracking/lavira_offline/
+run_20260729_120927_509752/robot_01_online_navigation_test_001
+```
+
+任务：
+
+```text
+Go through the doorway, then turn left and stop near the bed.
+```
+
+本轮显式开启：
+
+```bash
+--lavira_online_navigation \
+--lavira_online_mapping_interval_s 1.0 \
+--lavira_online_replan_interval_s 1.0 \
+--lavira_backtrack_strategy replan_world_goal \
+--nav_map_mode lavira_compatible_global \
+--nav_global_unknown_space_policy blocked
+```
+
+真实 Qwen/Isaac 执行序列：
+
+```text
+decision_000 NAVIGATE left    -> 到达并提交 waypoint 0
+decision_001 NAVIGATE forward -> 到达并提交 waypoint 1
+decision_002 NAVIGATE forward -> 到达并提交 waypoint 2
+decision_003 NAVIGATE forward -> 到达并提交 waypoint 3
+decision_004 STOP forward     -> 已在 0.75m 阈值内，稳定 stand 并结束
+```
+
+结构化输出和日志交叉检查结果：
+
+| 项目 | 结果 |
+| --- | ---: |
+| Qwen 请求数 | 5 |
+| 已提交 history waypoint | 4 |
+| 决策时全局地图融合 | 5 |
+| 执行期在线地图融合 | 20 |
+| 在线 FMM 重规划/热替换 | 20 |
+| collision 事件 | 0 |
+| FMM/热替换失败 | 0 |
+| 最终 action | `STOP` |
+| 最终 controller 状态 | `completed`，robot standing |
+
+在线重规划按 decision 分布为 `10 + 6 + 2 + 2 = 20` 次。第一段 NAVIGATE 的初始全局路径为
+`0.903m`，同一个活动世界目标的在线剩余路径依次缩短为：
+
+```text
+0.794 -> 0.650 -> 0.525 -> 0.420 -> 0.324
+      -> 0.246 -> 0.196 -> 0.155 -> 0.143 -> 0.127m
+```
+
+这证明在线更新没有增加 decision、没有重新请求 Qwen，也没有随机改变模型目标；它只用最新
+地图重算到同一活动目标的路径。后续三段全局执行路径约为 `0.13–0.17m`，最终 forward 图中床
+已占据主要视野，属于床前的小步接近，不是机器人卡在原地。
+
+decision 004 的全局 FMM 起点约为 `[1.634, 4.781]`，安全目标约为
+`[1.726, 4.673]`，距离 `0.142m < 0.75m`，因此不再启动一次多余 locomotion，直接完成模型
+STOP。这里确认的是模型 STOP 的规划和执行语义；Isaac 侧仍没有 Habitat 数据集的 ground-truth
+success 判定。
+
+本轮没有返回 BACKTRACK，也没有产生 commanded non-progress，因此验证范围是：
+
+```text
+已真实验证：
+  在线 NAVIGATE + 累计地图 + 周期 FMM + 路径热替换 + STOP
+
+尚未由本轮验证：
+  在线 BACKTRACK
+  collision_count > 0 后的真实绕行
+```
+
+终端中的 ONNX Runtime DRM device discovery warning 不影响结果：当前 locomotion/stand
+ONNX 明确使用 CPU provider；Isaac RTX/PhysX 仍使用 `cuda:0`。Kit 的
+`IMemoryBudgetManagerFactory` 消息也是 performance warning，不是本轮失败。
+
+#### 当前实现与 LaViRA `qwen_end2end` 的对齐边界
+
+当前高层主链已经对齐：
+
+```text
+全部 history 文字 + 最近四个 waypoint 的 init/dir 图片
+  -> 当前 forward/left/behind/right 四视图
+  -> 单次 Qwen 输出 action/direction/target/bbox/waypoint
+  -> bbox 底边目标深度投影和可通行目标退让
+  -> episode 累计 full map
+  -> skfmm.distance(dx=1) + 五格局部目标
+  -> NAVIGATE / BACKTRACK / STOP
+  -> Qwen 明确选择 BACKTRACK waypoint
+  -> 旧 waypoint 决策位置作为世界目标
+  -> 接受 BACKTRACK 后立即截断 history
+  -> STOP 最终安全接近
+```
+
+仍然存在的主要差异：
+
+| 环节 | LaViRA `qwen_end2end` | 当前 Isaac/G1 |
+| --- | --- | --- |
+| Qwen 调用 | Habitat 进程内直接 `model.generate()` | schema v2 HTTP/SSH 远程调用并严格绑定 observation |
+| 四视图 | 单相机执行 12 次 30° 转向后抽取四帧 | 四台固定 RGB-D 在同一 physics step 同步采集 |
+| 地图通道 | 四个基础通道 + Grounded-SAM 动态语义类别 | 真实四个几何/位置通道；没有伪造语义通道 |
+| 未知区域 | 没有明确障碍的未知区通常可规划 | 实测默认 `blocked`，只进入已观测安全区；可切换 `lavira` |
+| 地图更新 | 每个 Habitat 离散 action 后更新 | G1 50Hz 控制之外按默认 1Hz navigation tick 更新 |
+| FMM 使用 | 每个离散 action 重算短期目标并输出一个动作 | 提取安全世界路径，周期重算后热替换 pure-pursuit 路径 |
+| 低层动作 | STOP/前进/左转/右转 | vx/vy/wz、29DOF locomotion、stand 平滑切换 |
+| collision | 单次 MOVE_FORWARD 位移不足时写方向 mask | 持续有效平移命令无进度后写前方圆形 mask |
+| waypoint 提交 | 先加入未完成记录，超时再删除，并去除近距离重复点 | 到达并稳定 stand 后提交；目前不删除近距离重复点 |
+| 超时恢复 | 删除未完成目标并重新看 panorama/请求模型 | 安全停止并把 controller 标为失败 |
+| episode | 运行到 Habitat done/STOP/max step | 仍有 `lavira_history_max_decisions` 有限边界 |
+| 评测 | success、SPL、nDTW、oracle success | 保存执行证据；尚无 Isaac ground-truth VLN 指标 |
+
+FMM 数学核心、history 图片预算、action schema、BACKTRACK waypoint 所有权和立即截断语义已经
+对齐。Habitat 离散动作与 G1 连续动力学属于必须保留的平台适配，不应通过复制代码强行消除。
+当前最主要的算法缺口是 Grounded-SAM 语义地图；当前最主要的 episode 缺口是持续运行、失败后
+重新决策和 ground-truth 评测。
+
+#### 2026-07-27 真实 Qwen + 累计全局地图运行审计
+
+运行目录：
+
+```text
+outputs/isaacsim_goal_tracking/lavira_offline/
+run_20260727_124833_865149/robot_01_global_map_test_001
+```
+
+任务：
+
+```text
+Go through the doorway, then turn left and stop near the bed.
+```
+
+真实执行序列为：
+
+```text
+decision_000 NAVIGATE left -> 到达并提交 waypoint 0
+decision_001 NAVIGATE left -> 到达并提交 waypoint 1
+decision_002 STOP forward  -> 已在 0.75m 阈值内，稳定 stand 并结束 controller
+```
+
+全局地图数组审计结果：
+
+| decision | action | updates | obstacle | explored | current | past |
+| --- | --- | ---: | ---: | ---: | ---: | ---: |
+| `000` | NAVIGATE | 1 | 1908 | 7044 | 29 | 0 |
+| `001` | NAVIGATE | 2 | 2483 | 7860 | 29 | 29 |
+| `002` | STOP | 3 | 2587 | 7908 | 29 | 58 |
+
+三轮 full map 原点始终为：
+
+```text
+[-10.848760962486267, -6.751875877380371]
+```
+
+第一帧实际机器人位置为：
+
+```text
+[1.151239037513733, 5.248124122619629]
+```
+
+两轴均相差 12m，证明默认 24m full map 正确地以第一帧实际起点为中心。直接读取三个
+`lavira_global_map.npz` 后确认：
+
+- `full_map.shape == (4, 480, 480)`，通道均为真实二值数组。
+- obstacle/explored 在 `000 -> 001 -> 002` 中单调不减。
+- 每一轮 previous current 都完整进入下一轮 past。
+- `local_map` 与 `local_bounds_rc_exclusive` 指定的 full-map 裁剪完全一致。
+- 当前观测局部原点随机器人改变，而 full-map 原点保持不变。
+
+实际交给 follower 的是 `global_planning/fmm_plan.json`：
+
+```text
+decision_000:
+  global path = 1.585m / 8 waypoints
+  next decision root distance to goal = 0.147m
+
+decision_001:
+  local probe path  = 0.429m
+  global execution = 0.135m / 2 waypoints
+  next decision root distance to goal = 0.117m
+
+decision_002:
+  global STOP goal distance = 0.143m
+  threshold = 0.75m
+  result = STOPPED, robot_standing=true, model_stop_completed=true
+```
+
+第二轮局部和全局路径不同是预期行为：累计地图把床表面目标判为不可通行，并通过
+`global_nearest_traversable` 选择床旁的安全格，runner 日志也明确接受了 0.135m 的全局路径，
+不是 0.429m 的局部 probe 路径。
+
+本轮发现的主要风险是 Qwen 三轮都返回近似整图 bbox：
+
+```text
+[0, 0, 640, 476]
+```
+
+decision 000 的 bbox 底边中点落在地板上，投影高度约 `z=0.002m`，而不是床本身；后两轮底边
+中点因为床占据画面下部才落到约 `z=0.503m` 的床面。这说明方向、目标和 STOP 判断可以正确，
+但当前服务器/Qwen 的 bbox grounding 不够精确，换场景后可能导致错误三维目标。
+
+这轮没有返回 BACKTRACK，因此它只验证了累计全局图上的 NAVIGATE、history 和 STOP。累计
+全局图上的真实 Qwen BACKTRACK 随后已经通过下面的专项运行完成验证。
+
+#### 2026-07-27 真实 Qwen + 累计全局地图 BACKTRACK 验证
+
+运行目录：
+
+```text
+outputs/isaacsim_goal_tracking/lavira_offline/
+run_20260727_131434_233382/robot_01_global_backtrack_test_003
+```
+
+该运行使用 10 轮执行窗口。真实 Qwen 分别在 decision 003 和 decision 005 返回：
+
+```json
+{
+  "action": "BACKTRACK",
+  "waypoint": 0
+}
+```
+
+两次动作都完成了同一条默认实现链：
+
+```text
+Qwen 选择 waypoint 0
+  -> 从 history_commit.json 读取 waypoint 0 的 decision_world_pose[:2,3]
+  -> 把本轮四视图融合进 episode 累计 full map
+  -> 在固定全局坐标图上设置 historical waypoint 目标
+  -> 重新运行 FMM，而不是反向重放旧路径
+  -> 接受动作时立即把 history 截断到 waypoint 0
+  -> 复用现有 pure-pursuit 和 G1 locomotion
+  -> 路径到达、切回 stand、稳定后写入 status=arrived
+```
+
+waypoint 0 保存的原始历史世界坐标为：
+
+```text
+[1.151239037513733, 5.248124122619629]
+```
+
+固定全局地图原点始终为：
+
+```text
+[-10.848760962486267, -6.751875877380371]
+```
+
+FMM 目标格均为：
+
+```text
+goal_cell_rc = [240, 240]
+target_selection_strategy = global_historical_waypoint_traversable
+```
+
+对应的格中心世界坐标为：
+
+```text
+[1.1762390375137333, 5.273124122619629]
+```
+
+它与原始历史坐标每轴相差半个 `0.05m` cell，属于正常的世界坐标到栅格中心量化，不是选错
+waypoint。
+
+第一次真实全局 BACKTRACK：
+
+```text
+decision_index        = 3
+strategy              = replan_world_goal
+target_waypoint       = 0
+history_count_before  = 3
+history_count_after   = 1
+path_length_m         = 0.2795666502
+completion_step       = 2965
+status                = arrived
+execution_source      = lavira_global_replanned_backtrack_waypoint_000_decision_003
+```
+
+第二次真实全局 BACKTRACK：
+
+```text
+decision_index        = 5
+strategy              = replan_world_goal
+target_waypoint       = 0
+history_count_before  = 2
+history_count_after   = 1
+path_length_m         = 0.2115347327
+completion_step       = 4002
+status                = arrived
+execution_source      = lavira_global_replanned_backtrack_waypoint_000_decision_005
+```
+
+对应日志均完整出现：
+
+```text
+BACKTRACK accepted
+BACKTRACK path reached
+BACKTRACK completed
+```
+
+两个 decision 目录都包含：
+
+```text
+response.json
+response_interpretation.json
+lavira_global_map.json
+lavira_global_map.npz
+global_planning/fmm_plan.json
+global_planning/fmm_distance.npy
+global_planning/fmm_path.png
+backtrack_execution.json
+```
+
+`response_interpretation.json` 中的 `global_execution_plan.status` 为 `ok`，action 为
+`BACKTRACK`；`backtrack_execution.json` 最终状态均为 `arrived`。这证明累计全局地图版本的
+Qwen waypoint 选择、历史世界坐标解析、全局 FMM、立即截断和真实机器人运动已经端到端跑通。
+
+因为专项命令配置了 10 轮，第一次 BACKTRACK 完成后 controller 会根据截断后的 history 继续
+请求模型。本次运行后续 decision 006 的新 NAVIGATE 因 cross-track 安全阈值而中止；它发生在
+两次 BACKTRACK 都完成以后，不属于 BACKTRACK 执行失败，也不改变上述验证结论。
+
+### 1.2 2026-07-26：BACKTRACK 对齐 `qwen_end2end`
 
 本次修改把 Isaac 侧 BACKTRACK 的默认执行方式从“反向重放历史 FMM 路径”改为与
 `lavira_code/vlnce_baselines/lavira_main_qwen_end2end.py` 相同的世界坐标目标重规划。
@@ -107,8 +593,8 @@ waypoint，只负责校验和执行。
 Qwen 返回 BACKTRACK + waypoint
   -> 校验 waypoint 属于已提交 history
   -> 读取该 waypoint 决策时的机器人世界坐标
-  -> 使用当前四视图重新构建局部地图
-  -> 在当前地图上重新运行 FMM
+  -> 使用当前四视图更新固定坐标累计全局地图
+  -> 在累计全局地图上重新运行 FMM
   -> 接受动作并立即截断 waypoint 后面的 history
   -> 沿新 FMM 路径返回
   -> 到达、切回 stand、稳定后记录 arrived
@@ -153,7 +639,7 @@ decision_005:
 ```text
 Qwen 选择明确 waypoint
   -> Isaac 读取历史世界坐标
-  -> 当前地图重新 FMM
+  -> 当时版本使用当前地图重新 FMM
   -> G1 返回该 waypoint
   -> history 在接受动作时按 LaViRA 语义截断
 ```
@@ -223,7 +709,7 @@ Ran 55 tests
 OK (skipped=1)
 ```
 
-### 1.2 2026-07-23 完成内容
+### 1.3 2026-07-23 完成内容
 
 当日完成的不是单独一个 STOP，而是把单轮导航扩展成了有限多轮
 `NAVIGATE / BACKTRACK / STOP` episode controller。
@@ -326,7 +812,7 @@ history              = 2 -> 2
 第二次已经验证 G1 的真实 locomotion 最终接近；尚未验证的是远程真实 Qwen 能否在正确语义
 位置主动返回 STOP。
 
-### 1.3 仍未完成
+### 1.4 仍未完成
 
 - 真实 Qwen 主动选择 STOP 的端到端验证；目前 STOP 运动执行使用 mock 强制触发。
 - 真正“持续运行直到 STOP”的开放 episode。当前仍由
@@ -335,9 +821,8 @@ history              = 2 -> 2
   例外。
 - 路径卡住、FMM 不可达、cross-track 或单段超时后的自动恢复。目前会安全进入 FAILED，不会
   自动重新拍照请求模型。
-- BACKTRACK 当前只使用决策时重新采集的四视图局部地图，尚未融合整个 episode 的累计地图。
-- BACKTRACK 执行过程中的动态障碍更新和在线重新规划。
-- 多轮 occupancy map 累积、运动中地图更新和在线重规划。
+- BACKTRACK 执行过程中的逐控制步动态障碍更新和在线重新规划；当前全局图在决策抓图时累计。
+- Grounded-SAM semantic category 通道；当前只有 obstacle/explored/current/past。
 - 异步 HTTP worker；当前请求模型时仿真主线程同步等待。
 - 跨进程 episode/history 保存与恢复。
 - ground-truth goal region、真正 task success、SPL、碰撞率和超时统计。
@@ -901,7 +1386,7 @@ target_projection_depth_m.npy
 target_projection_depth_preview.png
 ```
 
-## 7. 四路 depth 局部导航地图
+## 7. 四路 depth 当前观测与累计全局地图
 
 增加：
 
@@ -909,7 +1394,9 @@ target_projection_depth_preview.png
 --lavira_local_map_probe
 ```
 
-后，客户端把本轮四路 depth 合并为当前局部世界栅格。
+后，客户端先把本轮四路 depth 合并为以机器人为中心的当前观测栅格。bounded episode 默认
+再由 `lavira_global_mapping.py` 把它变换到 episode 固定世界栅格并累计；一次性 probe 仍会
+保留当前观测文件，便于分别检查投影错误和融合错误。
 
 默认约定：
 
@@ -933,7 +1420,7 @@ inflated_obstacle
 traversable
 ```
 
-规则：
+当前观测规则：
 
 - 未观测区域不可通行。
 - 障碍按照 G1 水平包络膨胀。
@@ -942,14 +1429,32 @@ traversable
 - 回退失败后才搜索有限距离内的最近 traversable 点。
 - 没有安全目标时停止规划。
 
-这是当前四相机视野生成的局部地图，不是读取完整 USD 得到的全局地图，也不会跨决策轮累积。
-
-输出：
+当前观测输出：
 
 ```text
 navigation_map.json
 navigation_map.npz
 navigation_map.png
+```
+
+bounded episode 默认额外生成固定坐标累计地图。它不是读取完整 USD 的先验地图，而是机器人
+从第一轮开始实际看到的 RGB-D 观测历史，因此能适配未来更换场景：
+
+```text
+第一帧实际 root XY
+  -> 确定一次 full map 原点
+  -> 后续每轮局部 observed/occupied 转换到 full-map cell
+  -> max 融合，旧区域不丢失
+  -> 根据当前 root cell 生成 connected traversable
+  -> NAVIGATE / BACKTRACK / STOP 共用该 FMM 输入
+```
+
+累计地图输出：
+
+```text
+lavira_global_map.json
+lavira_global_map.npz
+lavira_global_map.png
 ```
 
 ## 8. FMM 路径规划
@@ -1078,13 +1583,13 @@ FrameBundle。`init_rgb` 固定取 forward，`dir_rgb` 取模型 `direction` 指
 sim step 只记录执行结果，不会错误替换拍摄图片时的决策点位姿。
 
 默认 `--lavira_history_max_decisions 3`。前 `N-1` 个 NAVIGATE/BACKTRACK 可以执行，第 `N`
-个普通响应只读。收到 BACKTRACK 时，程序默认读取目标 waypoint 的历史世界坐标，在当前
-四视图 traversability map 上重新运行 FMM，并在接受动作时立即把 history 截断到该 waypoint；
+个普通响应只读。收到 BACKTRACK 时，程序默认读取目标 waypoint 的历史世界坐标，在累计
+全局 traversability map 上重新运行 FMM，并在接受动作时立即把 history 截断到该 waypoint；
 decision index 仍保持单调递增。BACKTRACK 路径上限默认为 `6.0m`，可用
 `--lavira_backtrack_max_path_m` 调整。旧反向路径策略可用
 `--lavira_backtrack_strategy stored_reverse` 显式开启。
 
-STOP 严格复用 NAVIGATE 已有的 bbox 底边中心投影、安全目标回退、局部地图、FMM 和
+STOP 严格复用 NAVIGATE 已有的 bbox 底边中心投影、安全目标回退、累计全局地图、FMM 和
 pure-pursuit，不建立第二套规划器。原版 LaViRA 的到达阈值为 `15` 个地图格，默认地图分辨率
 为 `0.05m/cell`，因此 Isaac 默认使用：
 
@@ -1368,6 +1873,136 @@ python scripts/isaacsim_goal_tracking/isaacsim_path_follwing.py \
 `--lavira_stop_reached_threshold_m 5.0`。这只是诊断值；正常 LaViRA 测试必须恢复默认
 `0.75m`。
 
+### 10.10 真实 Qwen + 累计全局地图 BACKTRACK 专项测试
+
+这个测试通过 history 数量向 Qwen 明确规定动作顺序：
+
+```text
+history=0 -> NAVIGATE，创建 waypoint 0
+history=1 -> NAVIGATE，创建 waypoint 1
+history>=2 -> BACKTRACK waypoint 0
+```
+
+保持 10.5 的 SSH 隧道运行，然后执行：
+
+```bash
+cd /home/yile/projects/unitree-g1-isaaclab-project
+conda activate isaacsim
+export VK_ICD_FILENAMES=/etc/vulkan/icd.d/nvidia_icd.json
+
+python scripts/isaacsim_goal_tracking/isaacsim_path_follwing.py \
+  --mode switch \
+  --house \
+  --device cuda:0 \
+  --spawn 1.15 5.25 0.8 \
+  --four_rgbd_cameras \
+  --lavira_history_probe \
+  --lavira_history_max_decisions 10 \
+  --lavira_history_execution_timeout 45 \
+  --lavira_backtrack_strategy replan_world_goal \
+  --lavira_backtrack_max_path_m 6.0 \
+  --fmm_execute_max_path_m 2.5 \
+  --nav_map_mode lavira_compatible_global \
+  --nav_map_resolution_m 0.05 \
+  --nav_map_size_m 24.0 \
+  --nav_global_origin_mode spawn_center \
+  --nav_global_downscaling 2 \
+  --nav_global_center_reset_steps 25 \
+  --nav_global_unknown_space_policy blocked \
+  --lavira_server_url "http://127.0.0.1:18765/v1/lavira/decision" \
+  --lavira_timeout 90 \
+  --lavira_session_id "robot_01_global_backtrack_test_003" \
+  --instruction "This is a controller verification task. Create exactly two navigation waypoints before returning. If history contains 0 waypoints, output NAVIGATE toward a visible clear traversable floor region away from the starting position. If history contains 1 waypoint, output NAVIGATE again toward another visible clear traversable floor region farther from the starting position. As soon as history contains 2 or more waypoints, output BACKTRACK with waypoint 0. Do not output STOP before issuing BACKTRACK to waypoint 0." \
+  --max_steps 10000 \
+  --real-time \
+  --no-show_path
+```
+
+这里使用 `--lavira_history_max_decisions 10`，decision 000–008 都属于可执行轮，只有
+decision 009 是最后一次只读响应。这样即使 Qwen 没有在 history=2 时立刻遵循指令，而是晚几轮
+才返回 BACKTRACK，仍有足够大的执行窗口。看到 `BACKTRACK completed` 后可以直接按
+`Ctrl+C` 结束专项测试；因为 BACKTRACK 接受时会把 history 截断到 waypoint 0，继续运行时
+Qwen 可能根据缩短后的 history 再次开始 NAVIGATE。
+
+预期关键日志：
+
+```text
+[LAVIRA EPISODE] committed history waypoint: waypoint=0
+[LAVIRA EPISODE] committed history waypoint: waypoint=1
+[LAVIRA] Valid navigation response: action=BACKTRACK waypoint=0
+[LAVIRA GLOBAL MAP] fused decision observation: updates=N origin=[...]
+[LAVIRA EPISODE] decision_NNN BACKTRACK accepted:
+waypoint=0 strategy=replan_world_goal history=M->1
+[LAVIRA EPISODE] decision_NNN BACKTRACK path reached
+[LAVIRA EPISODE] BACKTRACK completed: waypoint=0 history=M->1
+```
+
+必须核对实际返回 BACKTRACK 的 `decision_NNN` 目录：
+
+```text
+response.json
+response_interpretation.json
+lavira_global_map.json
+lavira_global_map.npz
+global_planning/fmm_plan.json
+global_planning/fmm_path.png
+backtrack_execution.json
+```
+
+`backtrack_execution.json` 的合格条件：
+
+```text
+strategy = replan_world_goal
+target_waypoint = 0
+history_count_before >= 2
+history_count_after = 1
+status = arrived
+```
+
+同时，`global_planning/fmm_plan.json` 的 `goal_world_xy` 应接近
+waypoint 0 的 `history_commit.json -> decision_world_pose[:2,3]`，而不是反向重放旧路径。
+
+### 10.11 在线地图、collision map 和周期 FMM 测试
+
+先保持 10.10 的服务器和 SSH 隧道运行。在同一条仿真命令中增加：
+
+```bash
+--lavira_online_navigation \
+--lavira_online_mapping_interval_s 1.0 \
+--lavira_online_replan_interval_s 1.0 \
+--lavira_collision_command_speed_m_s 0.12 \
+--lavira_collision_window_s 0.75 \
+--lavira_collision_min_progress_m 0.04 \
+--lavira_collision_mark_distance_m 0.45 \
+--lavira_collision_mark_radius_m 0.15
+```
+
+同时必须保留：
+
+```bash
+--nav_map_mode lavira_compatible_global \
+--lavira_backtrack_strategy replan_world_goal
+```
+
+预期正常路径至少出现：
+
+```text
+[LAVIRA ONLINE] fused execution observation: bundle=...
+[LAVIRA ONLINE] Hot-swapped FMM path: ...
+[LAVIRA ONLINE] replanned unchanged goal: action=NAVIGATE|BACKTRACK|STOP ...
+```
+
+只有持续平移命令没有产生足够 XY 进度时才应出现：
+
+```text
+[LAVIRA ONLINE] commanded non-progress marked collision: ...
+```
+
+检查执行 decision 目录下的 `online_navigation.json`：周期重规划前后的
+`goal_world_xy` 必须不变，`map_update_count` 和 `replan_count` 应递增；发生碰撞时
+`collision_count` 和 NPZ 中的 `collision_map` 非零。在线更新不应产生额外 Qwen 请求，
+也不应改变本轮 history 数量。
+
 ## 11. 一次请求的输出文件
 
 ```text
@@ -1395,6 +2030,14 @@ outputs/isaacsim_goal_tracking/lavira_offline/
             ├── history_commit.json
             ├── backtrack_execution.json
             ├── stop_execution.json
+            ├── online_navigation.json
+            ├── online_latest/
+            │   ├── lavira_global_map.json
+            │   ├── lavira_global_map.npz
+            │   ├── lavira_global_map.png
+            │   ├── fmm_plan.json
+            │   ├── fmm_distance.npy
+            │   └── fmm_path.png
             └── bounded_episode_status.json
 ```
 
@@ -1411,7 +2054,10 @@ fmm_plan_error.json
 已完成 waypoint 的 history 图片。BACKTRACK 请求、重规划路径和完成/失败状态保存在
 `backtrack_execution.json`。STOP 目标、阈值、实际停止距离、stand 状态和完成/失败结果保存在
 `stop_execution.json`。终止只读响应、STOP 或失败的控制器状态保存在
-`bounded_episode_status.json`。
+`bounded_episode_status.json`。累计 full/local/one-step 地图保存在
+`lavira_global_map.json/.npz/.png`，真正交给执行器的全局 FMM 结果保存在
+`global_planning/`，不会覆盖同轮当前观测的局部 FMM 调试文件。开启在线闭环后，
+`online_navigation.json` 保存执行期事件，`online_latest/` 始终保存最新一次在线地图和路径。
 
 ## 12. 关键代码
 
@@ -1419,14 +2065,15 @@ fmm_plan_error.json
 | --- | --- |
 | `isaacsim_path_follwing.py` | 程序入口，装配环境、相机和 runner |
 | `goal_tracking/config.py` | 默认资源路径和所有 CLI 参数 |
-| `goal_tracking/runners.py` | stand、locomotion、switch、一次性 FMM 和 history controller 接入 |
+| `goal_tracking/runners.py` | stand、locomotion、switch、FMM 启动和在线路径热替换接入 |
 | `goal_tracking/control.py` | 命令写入、速度斜坡、stand/locomotion 状态机 |
-| `goal_tracking/path.py` | waypoint、pure-pursuit、动态 FMM 路径和安全中止 |
+| `goal_tracking/path.py` | waypoint、pure-pursuit、动态/在线热替换 FMM 路径和安全中止 |
 | `goal_tracking/camera.py` | 四相机固定安装、方向、俯角和调试显示 |
 | `goal_tracking/frame_bundle.py` | 同步 RGB-D、内参、外参和位姿 |
 | `goal_tracking/lavira_protocol.py` | schema v2 请求、history、响应和严格校验 |
 | `goal_tracking/lavira_offline.py` | 可复用任意 decision/history 的 multipart、HTTP、落盘和单轮流程 |
-| `goal_tracking/lavira_episode.py` | LaViRA 风格候选 waypoint、到达提交和有限多轮状态机 |
+| `goal_tracking/lavira_episode.py` | waypoint/history、活动世界目标、在线 collision/FMM 和有限多轮状态机 |
+| `goal_tracking/lavira_global_mapping.py` | 固定世界原点、full/local 通道、max 融合、collision mask 和全局 FMM 输入 |
 | `goal_tracking/target_projection.py` | bbox-depth 采样和三坐标系投影 |
 | `goal_tracking/navigation_mapping.py` | 四路 depth 栅格、障碍膨胀和安全目标 |
 | `goal_tracking/fmm_planner.py` | FMM 距离场、短期目标、路径和世界 waypoint |
@@ -1444,7 +2091,7 @@ python -m unittest discover \
 最近验证结果：
 
 ```text
-Ran 55 tests
+Ran 64 tests
 OK (skipped=1)
 ```
 
@@ -1459,8 +2106,11 @@ OK (skipped=1)
 - multipart PNG 生成与解析。
 - bbox-depth 投影。
 - 地图坐标、障碍膨胀、目标回退。
+- 全局原点固定、跨帧 obstacle/explored 累计、current/past 通道、manual origin 和越界报错。
+- 稳定世界目标与 collision mask 共用全局 FMM 网格。
 - FMM 绕障、不可达和路径安全。
-- FMM 路径执行准备、起点漂移、超长、cross-track 和倾角中止。
+- 在线命令无进度碰撞窗口、周期地图融合、同一世界目标 FMM 重规划。
+- FMM 路径执行准备、运动中热替换、起点漂移、超长、cross-track 和倾角中止。
 
 ## 14. 已知限制
 
@@ -1468,10 +2118,16 @@ OK (skipped=1)
 
 - 不阻塞仿真主线程的异步网络 worker。
 - 跨进程退出/重启后的 episode 和 history 恢复。
-- BACKTRACK 默认只使用本轮四视图局部地图重新规划，尚未融合整个 episode 的累计地图。
-- 多轮 occupancy map 累积。
-- 运动过程中的动态地图更新和重新规划。
+- Grounded-SAM semantic category 通道；当前累计的是 LaViRA 前四个几何/位置通道。
+- 在线地图目前由主线程按低频 navigation tick 同步抓取，尚未移动到独立建图 worker。
+- LaViRA 的近距离重复 waypoint 删除和目标失败后自动重新决策恢复。
+- 持续运行直到 STOP/环境终止；当前仍保留可配置的最大 decision 边界。
 - 完整 VLN episode success、SPL、碰撞率和超时评估。
+
+已经实现但尚未完成真实组合验证：
+
+- 在线模式下 Qwen 返回 BACKTRACK 后，返回途中持续更新地图并对同一历史目标重新 FMM。
+- 真实障碍导致 `collision_count > 0` 后，collision mask 触发新 FMM 路径并成功绕行。
 
 默认 `--lavira_decision_probe` 仍固定发送：
 
@@ -1488,7 +2144,7 @@ OK (skipped=1)
 
 ## 15. 下一步
 
-真实服务器已经验证：
+真实服务器早期 history 测试曾记录：
 
 ```text
 decision_000 -> NAVIGATE，执行并提交 waypoint 0
@@ -1500,14 +2156,43 @@ decision_003 -> history=3, images=10，返回 BACKTRACK waypoint=1
 上述 `decision_003` 当时恰好是有限测试的最后一个普通响应，因此该次 BACKTRACK 只验证和
 保存。另一次 `robot_01_backtrack_execute_test_003` 已在旧 `stored_reverse` 策略下真实执行
 BACKTRACK waypoint 1，沿 `1.962m` 反向路径在 step 3165 到达。当前默认策略已改为按该
-waypoint 的世界坐标在当前地图重新 FMM。
+waypoint 的世界坐标在累计全局地图重新 FMM。
 
-BACKTRACK 和 STOP 都已按原版 LaViRA action 语义接入，STOP 客户端执行链也已通过 mock
-实机仿真验证。接下来需要：
+此后已经进一步完成：
 
 ```text
-STOP：真实 Qwen 主动触发后的最终接近和 stand 验证
-BACKTRACK：真实 Qwen 下验证默认 world-goal 重规划，并评估局部地图遮挡/未知区域
-EPISODE：支持持续运行直到 STOP，并为卡住/不可达增加重新决策恢复
+robot_01_global_map_test_001：
+  累计全局地图两次 NAVIGATE
+  真实 Qwen 主动 STOP
+  STOPPED + robot standing
+
+robot_01_global_backtrack_test_003：
+  真实 Qwen 两次 BACKTRACK waypoint 0
+  默认 replan_world_goal
+  累计全局地图 FMM
+  history 分别 3->1、2->1
+  两次 status=arrived
+
+robot_01_online_navigation_test_001：
+  真实 Qwen 四次 NAVIGATE 后主动 STOP
+  20 次执行期全局地图融合
+  20 次同目标 FMM 重规划和运动中路径热替换
+  collision_count=0
+  STOP completed + robot standing
+```
+
+BACKTRACK 和 STOP 都已按原版 LaViRA action 语义接入，并在累计全局地图模式下真实完成；
+在线 NAVIGATE/FMM/STOP 也已真实完成。原 README 中“把每次决策更新扩展为运动过程更新”这一项
+已经完成，不再列为下一步。
+
+接下来需要：
+
+```text
+ONLINE BACKTRACK：返回途中持续融合地图、重算同一历史世界目标并完成到达
+COLLISION：在真实障碍前触发 collision_count > 0，验证新 FMM 路径和绕行
+BACKTRACK：使用数米级返回距离压力测试累计地图遮挡、未知区域和长路径执行
+SEMANTIC MAP：接入 Grounded-SAM 动态 semantic category 通道
+HISTORY：对齐 LaViRA 的近距离重复 waypoint 删除
+EPISODE：支持持续运行直到 STOP，并为卡住、超时和不可达增加重新决策恢复
 评测：加入 ground-truth goal region、success、SPL 和碰撞统计
 ```

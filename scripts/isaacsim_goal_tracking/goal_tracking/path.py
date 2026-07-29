@@ -225,6 +225,60 @@ class WaypointPathFollower:
         self.velocity_limits = velocity_limits
         self.lookahead_distance_m = lookahead_distance_m
 
+    def replace_waypoints_while_active(
+        self,
+        waypoints: list[Waypoint] | tuple[Waypoint, ...],
+        *,
+        source: str,
+        cross_track_abort_m: float | None = None,
+        tilt_abort_rad: float | None = None,
+        velocity_limits: tuple[float, float, float] | None = None,
+        lookahead_distance_m: float | None = None,
+    ) -> None:
+        """Atomically replace an executing path without a stand/locomotion cycle."""
+
+        if not self.enabled or self.goal_reached:
+            raise RuntimeError(
+                "Online FMM replan requires an actively executing path."
+            )
+        checked = list(waypoints)
+        if len(checked) < 2:
+            raise ValueError("A dynamic path requires at least two waypoints.")
+        if any(
+            not all(
+                math.isfinite(value)
+                for value in (point.x, point.y, point.yaw)
+            )
+            for point in checked
+        ):
+            raise ValueError("Dynamic path contains a non-finite waypoint.")
+        if cross_track_abort_m is not None and cross_track_abort_m <= 0.0:
+            raise ValueError("Cross-track abort distance must be positive.")
+        if tilt_abort_rad is not None and tilt_abort_rad <= 0.0:
+            raise ValueError("Tilt abort angle must be positive.")
+        if velocity_limits is not None and any(
+            value <= 0.0 for value in velocity_limits
+        ):
+            raise ValueError("Dynamic path velocity limits must be positive.")
+        if lookahead_distance_m is not None and lookahead_distance_m <= 0.0:
+            raise ValueError("Dynamic path lookahead must be positive.")
+
+        self.waypoints = checked
+        self.path_source = str(source)
+        self.goal_reached = False
+        self.abort_reason = None
+        self.last_target = PathTarget()
+        self.cross_track_abort_m = cross_track_abort_m
+        self.tilt_abort_rad = tilt_abort_rad
+        self.velocity_limits = velocity_limits
+        self.lookahead_distance_m = lookahead_distance_m
+        print(
+            "[INFO] Active path hot-swapped: "
+            f"{len(self.waypoints)} waypoints, "
+            f"lookahead={self._lookahead_distance():.2f}, "
+            f"source={self.path_source}."
+        )
+
     def start(self) -> None:
         """启动路径跟踪，重置完成状态和上一次 target。"""
         if not self.waypoints:
