@@ -1,0 +1,43 @@
+model:
+  schema: 2
+  # Existing SSH tunnel: local 18765 -> remote localhost:8765.
+  endpoint: http://127.0.0.1:18765/v1/lavira/decision
+  timeout_s: 90.0
+
+simulation:
+  # Open-room start from scripts/isaacsim_goal_tracking/README.md real-model runs.
+  spawn: [1.15, 5.25, 0.8]
+  yaw_rad: 3.141592653589793
+
+camera:
+  width: 640
+  height: 480
+  hfov_deg: 79.0
+  near_m: 0.1
+  far_m: 5.0
+  target_depth_source: selected_view
+
+motion:
+  sim:
+    rotation_speed_rad_s: 0.4
+    rotation_duration_scale: 1.0
+    dead_reckoning_linear_scale: 1.0
+    dead_reckoning_angular_scale: 1.0
+  g1:
+    rotation_speed_rad_s: 0.4
+    rotation_duration_scale: 1.4
+    dead_reckoning_linear_scale: 0.7
+    dead_reckoning_angular_scale: 0.8
+
+local_planner:
+  url: http://127.0.0.1:8888
+  checkpoint: ./checkpoints/iplanner.pth
+  device: cuda
+  replan_interval_s: 0.1
+  safe_distance_m: 0.5
+  walk_speed_m_s: 0.3
+  lookahead_m: 0.5
+  goal_tolerance_m: 1.0
+
+odometry:
+  enabled_in_sim: false
