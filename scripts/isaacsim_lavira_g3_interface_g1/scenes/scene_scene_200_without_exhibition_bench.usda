@@ -1,0 +1,26 @@
+#usda 1.0
+(
+    defaultPrim = "scene_scene_200"
+    kilogramsPerUnit = 1
+    metersPerUnit = 1
+    subLayers = [
+        @/home/yile/scene/House/scene_200/mujoco/usd/scene_scene_200.usda@
+    ]
+    upAxis = "Z"
+)
+
+# Keep the original scene as a sublayer and deactivate only the long bench in
+# the first exhibition room.  Deactivating the parent prim removes both its
+# rendered meshes and all collision/physics children while leaving the source
+# scene recoverable and unchanged.
+over "scene_scene_200"
+{
+    over "Geometry"
+    {
+        over "exhibition_room_bench_0" (
+            active = false
+        )
+        {
+        }
+    }
+}

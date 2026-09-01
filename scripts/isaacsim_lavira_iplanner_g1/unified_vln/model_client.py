@@ -21,7 +21,11 @@ from .types import DIRECTION_ORDER, PanoramaBundle
 
 @dataclass(frozen=True)
 class CompletedWaypoint:
-    """Model-visible history for one physically completed NAVIGATE action."""
+    """一次已由机器人实际完成的 NAVIGATE 动作记录。
+
+    模型下一次决策时会看到这条文字历史；为了控制请求大小，只有最近若干条记录
+    会附带动作前的前视图和所选方向图，较旧记录仍保留文字描述。
+    """
 
     waypoint_id: int
     decision_step: int
@@ -30,10 +34,22 @@ class CompletedWaypoint:
     init_rgb: np.ndarray
     direction_rgb: np.ndarray
 
-    def history_entry(self, *, include_images: bool) -> NavigationHistoryEntry:
-        prefix = f"history_{self.waypoint_id}"
+    def history_entry(
+        self,
+        *,
+        include_images: bool,
+        wire_waypoint_id: int | None = None,
+    ) -> NavigationHistoryEntry:
+        """生成协议中的历史元数据，并按需填写对应图片字段名。"""
+
+        waypoint_id = (
+            int(self.waypoint_id)
+            if wire_waypoint_id is None
+            else int(wire_waypoint_id)
+        )
+        prefix = f"history_{waypoint_id}"
         return NavigationHistoryEntry(
-            waypoint_id=int(self.waypoint_id),
+            waypoint_id=waypoint_id,
             step=int(self.decision_step),
             turn_action=f"turn {self.direction}",
             description=self.target,
@@ -44,15 +60,36 @@ class CompletedWaypoint:
 
 def build_model_history(
     records: list[CompletedWaypoint] | tuple[CompletedWaypoint, ...],
+    *,
+    max_waypoints: int | None = None,
 ) -> tuple[tuple[NavigationHistoryEntry, ...], dict[str, np.ndarray]]:
+    """把已完成路点转换为模型协议需要的历史条目和图片字段。
+
+    返回值第一项是文字历史，第二项只包含协议允许的最近几组图片。默认保留全部
+    文字历史；配置 ``max_waypoints`` 后只发送最近 N 项。内部完整记录仍保持原编号，
+    截取后的 wire history 会从 0 重新编号，以满足 schema-v2 的连续编号要求。
+    """
+
     records = tuple(records)
-    image_start = max(0, len(records) - LAVIRA_MAX_HISTORY_IMAGE_WAYPOINTS)
-    entries: list[NavigationHistoryEntry] = []
-    images: dict[str, np.ndarray] = {}
+    if max_waypoints is not None and max_waypoints <= 0:
+        raise ValueError("History max waypoints must be >0 when configured.")
     for index, record in enumerate(records):
         if record.waypoint_id != index:
             raise ValueError("Completed waypoint ids must be contiguous and zero-based.")
-        entry = record.history_entry(include_images=index >= image_start)
+    selected_records = (
+        records if max_waypoints is None else records[-max_waypoints:]
+    )
+    # 只从 image_start 开始附图；更早的记录通过纯文字保留上下文。
+    image_start = max(
+        0, len(selected_records) - LAVIRA_MAX_HISTORY_IMAGE_WAYPOINTS
+    )
+    entries: list[NavigationHistoryEntry] = []
+    images: dict[str, np.ndarray] = {}
+    for wire_index, record in enumerate(selected_records):
+        entry = record.history_entry(
+            include_images=wire_index >= image_start,
+            wire_waypoint_id=wire_index,
+        )
         entries.append(entry)
         if entry.has_images:
             images[entry.init_image_field] = np.asarray(record.init_rgb).copy()
@@ -61,7 +98,7 @@ def build_model_history(
 
 
 def encode_rgb_png(rgb: np.ndarray) -> bytes:
-    """Match the deployed transport: RGB uint8, lossless full-resolution PNG."""
+    """按线上协议把 RGB uint8 原分辨率图像无损编码为 PNG 字节。"""
     import cv2
 
     rgb = np.asarray(rgb)
@@ -75,9 +112,15 @@ def encode_rgb_png(rgb: np.ndarray) -> bytes:
 
 
 class CombinedModelClient:
-    """Exact schema-v2 multipart client for the existing combined model server."""
+    """严格遵循 schema-v2 的组合模型 HTTP 客户端。
+
+    请求使用 multipart/form-data：一个 JSON 元数据字段加若干 PNG 图片字段。
+    客户端在发送前后都执行协议校验，尽早发现字段名、图片和响应不匹配的问题。
+    """
 
     def __init__(self, server_url: str, timeout_s: float = 90.0):
+        """验证并保存模型服务地址和单次请求超时。"""
+
         if not server_url.strip():
             raise ValueError("Model server URL must not be empty.")
         if timeout_s <= 0.0:
@@ -94,9 +137,12 @@ class CombinedModelClient:
         decision_index: int,
         history: tuple[NavigationHistoryEntry, ...] = (),
     ) -> NavigationDecisionRequest:
+        """根据全景观察、导航指令和历史记录构造一次决策元数据。"""
+
         bundle.validated()
         first = bundle.views[DIRECTION_ORDER[0]]
         image_height, image_width = first.rgb.shape[:2]
+        # 字典值是 multipart 中实际使用的图片字段名，而不是图片内容。
         panorama = {
             direction: f"current_{direction}" for direction in DIRECTION_ORDER
         }
@@ -122,8 +168,11 @@ class CombinedModelClient:
         request: NavigationDecisionRequest,
         history_images: Mapping[str, np.ndarray | bytes] | None = None,
     ) -> dict[str, bytes]:
+        """收集历史图和当前四视图，并编码成协议要求的 PNG 字段字典。"""
+
         bundle.validated()
         history_images = {} if history_images is None else history_images
+        # 元数据声明了哪些历史图片，就必须不多不少地提供这些字段。
         expected_history: list[str] = []
         for entry in request.history:
             if entry.has_images:
@@ -153,6 +202,8 @@ class CombinedModelClient:
         request_metadata: NavigationDecisionRequest,
         images: Mapping[str, bytes],
     ) -> tuple[NavigationDecisionResponse, dict]:
+        """发送模型请求，校验并返回结构化响应及原始 JSON 字典。"""
+
         body, boundary = self._multipart_body(request_metadata, images)
         http_request = Request(
             self.server_url,
@@ -164,6 +215,7 @@ class CombinedModelClient:
                 "Accept": "application/json",
             },
         )
+        # 最多读取 1 MiB + 1 字节，用额外的 1 字节判断响应是否超限。
         try:
             with urlopen(http_request, timeout=self.timeout_s) as response:
                 response_bytes = response.read(1024 * 1024 + 1)
@@ -185,6 +237,7 @@ class CombinedModelClient:
             raise RuntimeError("Combined model did not return UTF-8 JSON.") from exc
         if not isinstance(payload, dict):
             raise RuntimeError("Combined model JSON response must be an object.")
+        # 除了 JSON 格式，还要验证响应是否确实对应本次请求。
         parsed = NavigationDecisionResponse.from_dict(payload)
         parsed.validate_matches(request_metadata)
         return parsed, payload
@@ -194,6 +247,8 @@ class CombinedModelClient:
         request: NavigationDecisionRequest,
         images: Mapping[str, bytes],
     ) -> None:
+        """检查图片字段集合完全匹配协议，且每个值都是真正的 PNG 字节。"""
+
         expected = set(request.required_image_fields)
         actual = set(images)
         if actual != expected:
@@ -213,11 +268,15 @@ class CombinedModelClient:
         request: NavigationDecisionRequest,
         images: Mapping[str, bytes],
     ) -> tuple[bytes, str]:
+        """手工组装 multipart 请求体，返回二进制正文和随机 boundary。"""
+
         cls._validate_images(request, images)
         boundary = f"----IsaacLaViRA{uuid.uuid4().hex}"
         chunks: list[bytes] = []
 
         def append_part(headers: list[str], payload: bytes) -> None:
+            """向请求体追加一个符合 MIME 格式的表单分段。"""
+
             chunks.append(f"--{boundary}\r\n".encode("ascii"))
             for header in headers:
                 chunks.append(f"{header}\r\n".encode("utf-8"))
@@ -253,6 +312,8 @@ def response_debug_dict(
     *,
     projected_goal_xy: np.ndarray | None = None,
 ) -> dict:
+    """生成便于落盘调试的响应字典，并可附加投影目标及其距离。"""
+
     result = response.to_dict()
     if projected_goal_xy is not None:
         goal = np.asarray(projected_goal_xy, dtype=np.float64).reshape(2)

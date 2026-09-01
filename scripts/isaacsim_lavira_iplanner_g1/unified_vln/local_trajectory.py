@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import math
+import time
 
 import numpy as np
 
@@ -18,13 +19,11 @@ def _validated_trajectory(trajectory: np.ndarray) -> np.ndarray:
     path = np.asarray(trajectory, dtype=np.float64)
     if path.ndim != 2 or path.shape[1] < 2 or path.shape[0] < 2:
         raise ValueError(f"iPlanner trajectory must be Nx2/Nx3 with N>=2, got {path.shape}.")
-    if not np.all(np.isfinite(path)):
-        raise ValueError("iPlanner trajectory contains non-finite values.")
     if path.shape[1] == 2:
         path = np.column_stack([path, np.zeros(path.shape[0], dtype=np.float64)])
     return path[:, :3].copy()
 
-
+#按已有 waypoint 截断，而不是连续精确插值截断，在目标前 safe_distance_m=0.5米处停止
 def truncate_trajectory_for_safety(
     trajectory: np.ndarray,
     safe_distance_m: float,
@@ -51,16 +50,26 @@ def truncate_trajectory_for_safety(
 
 @dataclass(frozen=True)
 class LocalFollowerConfig:
+    #期望前进速度，默认 0.3 m/s
     target_speed_m_s: float = 0.3
+    #前视距离，默认 0.5 m
     lookahead_m: float = 0.5
+    #最大前进速度，防止最终算出的速度超过 0.4 m/s
     max_forward_speed_m_s: float = 0.4
+    #最大旋转速度，防止最终算出的旋转速度超过 0.5 rad/s
     max_yaw_speed_rad_s: float = 0.5
+    #目标容忍度，默认 1.0 m
     goal_tolerance_m: float = 1.0
+    #盲旋转半径，默认 2.0 m
     blind_yaw_radius_m: float = 2.0
+    #旋转偏置，默认 0.0 rad/s
     yaw_bias_rad_s: float = 0.0
+    #重新规划间隔，默认 0.1 s
     replan_interval_s: float = 0.1
-    dead_reckoning_linear_scale: float = 1.0
-    dead_reckoning_angular_scale: float = 1.0
+    # 死算里程线性缩放；Uni-LaViRA G1 真机代码固定使用 0.7。
+    dead_reckoning_linear_scale: float = 0.7
+    # 死算里程角度缩放；Uni-LaViRA G1 真机代码固定使用 0.8。
+    dead_reckoning_angular_scale: float = 0.8
 
     def validated(self) -> "LocalFollowerConfig":
         positive = (
@@ -105,38 +114,28 @@ class _LocalReferenceTracker:
         self.odometry = odometry or NullOdometryProvider()
         self.path_local = _validated_trajectory(path)
         self.goal_local = np.asarray(goal_local_xy, dtype=np.float64).reshape(2)
-        if not np.all(np.isfinite(self.goal_local)):
-            raise ValueError("Local goal must be finite.")
 
         pose = self.odometry.get_pose()
         self.uses_odometry = pose is not None
-        self.path_fixed_xy: np.ndarray | None = None
         self.goal_fixed_xy: np.ndarray | None = None
         if pose is not None:
-            pose.validated()
-            self.path_fixed_xy = local_points_to_fixed(self.path_local[:, :2], pose)
             self.goal_fixed_xy = local_points_to_fixed(
                 self.goal_local.reshape(1, 2), pose
             )[0]
-
+    # 有 odometry 时，Uni 只更新局部目标，不变换两次重规划之间的旧局部路径；
+    # 无 odometry 时，使用上一条速度命令同时更新局部路径和目标。
     def advance(self, dt: float, applied_command: np.ndarray) -> str | None:
         if self.uses_odometry:
             pose = self.odometry.get_pose()
-            if pose is None:
-                return "odometry became unavailable during local trajectory execution"
-            try:
-                pose.validated()
-            except ValueError as exc:
-                return str(exc)
-            self.path_local[:, :2] = fixed_points_to_local(self.path_fixed_xy, pose)
-            self.goal_local = fixed_points_to_local(
-                self.goal_fixed_xy.reshape(1, 2), pose
-            )[0]
+            # Match Uni: keep the old local path untouched between replans and
+            # only refresh the fixed global goal when a pose is available.
+            if pose is not None:
+                self.goal_local = fixed_points_to_local(
+                    self.goal_fixed_xy.reshape(1, 2), pose
+                )[0]
             return None
 
         command = np.asarray(applied_command, dtype=np.float64).reshape(3)
-        if not np.all(np.isfinite(command)):
-            return "applied velocity command contains non-finite values"
         if dt <= 0.0:
             return None
         dx = command[0] * dt * self.config.dead_reckoning_linear_scale
@@ -152,16 +151,9 @@ class _LocalReferenceTracker:
             self.goal_local - translation
         ) @ inverse_delta_rotation.T
         return None
-
+    # 新规划已经以机器人当前位姿为局部原点，因此直接整体替换并由跟随器重置索引。
     def replace_path(self, path: np.ndarray) -> None:
-        new_path = _validated_trajectory(path)
-        if self.uses_odometry:
-            pose = self.odometry.get_pose()
-            if pose is None:
-                raise RuntimeError("Cannot replace path after odometry became unavailable.")
-            pose.validated()
-            self.path_fixed_xy = local_points_to_fixed(new_path[:, :2], pose)
-        self.path_local = new_path
+        self.path_local = _validated_trajectory(path)
 
 
 class LocalTrajectoryFollower:
@@ -175,7 +167,10 @@ class LocalTrajectoryFollower:
         self.config = config.validated()
         self.odometry = odometry
         self._reference: _LocalReferenceTracker | None = None
-        self.replan_elapsed_s = 0.0
+        # Pure Pursuit 只允许沿当前路径向前推进。若每帧都从 path[0] 重新查找，
+        # 机器人走过的旧点在身后重新变远后，可能再次被误选为 lookahead 目标。
+        self.current_idx = 0
+        self.last_replan_time_s = time.time()
 
     @property
     def active(self) -> bool:
@@ -194,25 +189,30 @@ class LocalTrajectoryFollower:
             self.odometry,
             self.config,
         )
-        self.replan_elapsed_s = 0.0
+        self.current_idx = 0
+        self.last_replan_time_s = time.time()
 
     def stop(self) -> None:
         self._reference = None
-        self.replan_elapsed_s = 0.0
+        self.current_idx = 0
 
     def needs_replan(self) -> bool:
-        return self.active and self.replan_elapsed_s >= self.config.replan_interval_s
+        return self.active and (
+            time.time() - self.last_replan_time_s > self.config.replan_interval_s
+        )
 
     def replace_path(self, path: np.ndarray) -> None:
         if self._reference is None:
             raise RuntimeError("Cannot replace an inactive local path.")
         self._reference.replace_path(path)
-        self.replan_elapsed_s = 0.0
+        # iPlanner 的新路径以机器人当前位姿为原点，必须从新路径开头重新搜索。
+        self.current_idx = 0
 
-    def defer_replan(self) -> None:
-        """Start a new replan interval after a recoverable planner failure."""
+    def mark_replan_attempt(self, started_at_s: float) -> None:
+        """Match Uni: remember the wall-clock timestamp from before planning."""
+
         if self.active:
-            self.replan_elapsed_s = 0.0
+            self.last_replan_time_s = float(started_at_s)
 
     def update(
         self,
@@ -229,7 +229,6 @@ class LocalTrajectoryFollower:
                 distance_to_goal_m=math.inf,
                 alpha_rad=0.0,
             )
-        self.replan_elapsed_s += max(float(dt), 0.0)
         abort_reason = self._reference.advance(dt, applied_command)
         goal = self._reference.goal_local.copy()
         distance_to_goal = float(np.linalg.norm(goal))
@@ -261,11 +260,15 @@ class LocalTrajectoryFollower:
             )
 
         path = self._reference.path_local
-        target = path[-1, :2]
-        for point in path:
-            if float(np.linalg.norm(point[:2])) > self.config.lookahead_m:
-                target = point[:2]
+        found_target = False
+        for index in range(self.current_idx, len(path)):
+            if float(np.linalg.norm(path[index, :2])) > self.config.lookahead_m:
+                self.current_idx = index
+                found_target = True
                 break
+        if not found_target:
+            self.current_idx = len(path) - 1
+        target = path[self.current_idx, :2]
         target_distance = max(float(np.linalg.norm(target)), 0.1)
         alpha = float(math.atan2(float(target[1]), float(target[0])))
 
@@ -280,13 +283,16 @@ class LocalTrajectoryFollower:
                 * math.sin(alpha)
                 / target_distance
             )
+        # Match Uni-LaViRA exactly: clamp the pursuit term first, then add the
+        # configured mechanical yaw-bias compensation without a second clamp.
         command_yaw = float(
             np.clip(
-                command_yaw + self.config.yaw_bias_rad_s,
+                command_yaw,
                 -self.config.max_yaw_speed_rad_s,
                 self.config.max_yaw_speed_rad_s,
             )
         )
+        command_yaw += self.config.yaw_bias_rad_s
         command_forward = max(
             0.1,
             self.config.target_speed_m_s

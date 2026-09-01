@@ -76,7 +76,28 @@ class G1LockWaistWalkFlatEnvCfg(G1FlatEnvCfg):
         self.terminations.base_contact.params["sensor_cfg"].body_names = "torso_link"
         self.events.base_external_force_torque = None
         self.events.push_robot = None
-        self.events.reset_robot_joints.params["position_range"] = (1.0, 1.0)
+        # Mild reset randomization for robustness fine-tuning from the 50k walking policy.
+        # Keep this gentle first: the goal is to recover from small spawn errors, not
+        # to learn from hard pushes yet.
+        self.events.reset_base.params = {
+            "pose_range": {
+                "x": (-0.25, 0.25),
+                "y": (-0.25, 0.25),
+                "roll": (-0.03, 0.03),
+                "pitch": (-0.03, 0.03),
+                "yaw": (-0.25, 0.25),
+            },
+            "velocity_range": {
+                "x": (-0.05, 0.05),
+                "y": (-0.05, 0.05),
+                "z": (-0.02, 0.02),
+                "roll": (-0.05, 0.05),
+                "pitch": (-0.05, 0.05),
+                "yaw": (-0.05, 0.05),
+            },
+        }
+        self.events.reset_robot_joints.params["position_range"] = (0.97, 1.03)
+        self.events.reset_robot_joints.params["velocity_range"] = (-0.05, 0.05)
 
 
 class G1LockWaistWalkFlatEnvCfg_PLAY(G1FlatEnvCfg_PLAY, G1LockWaistWalkFlatEnvCfg):

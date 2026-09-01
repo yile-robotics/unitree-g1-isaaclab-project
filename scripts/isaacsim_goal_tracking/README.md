@@ -63,13 +63,11 @@ Isaac Sim 同步四方向 RGB-D
 已实现：三种 action 共用的稳定活动目标、周期 FMM 和运动中路径热替换
 已验证：累计全局地图下两次 NAVIGATE、history 提交、Qwen 主动 STOP 和稳定 stand
 已验证：累计全局地图下真实 Qwen 两次选择 waypoint=0，均重新 FMM、截断 history 并成功返回
-已验证：在线模式下真实 Qwen 连续四次 NAVIGATE、20 次执行期地图更新/FMM 热替换和主动 STOP
 已验证（累计全局地图加入前）：默认 `replan_world_goal` 下 Qwen 两次选择 waypoint=0 并成功返回
 已验证：旧 `stored_reverse` 策略下真实服务器返回 waypoint=1，G1 沿 1.962m 反向路径到达
 已验证：mock STOP 下的“目标已在阈值内”无移动终止
 已验证：mock STOP 下的 FMM 最终接近、真实 G1 locomotion、0.75m 停止和 stand
-待真实验证：在线更新开启时的 Qwen BACKTRACK 返回过程和真实 collision 绕行
-未实现：Grounded-SAM 语义通道、无限 episode、ground-truth task success 和 SPL 等评测
+未实现：无限 episode、ground-truth task success 和 SPL 等评测
 ```
 
 默认 `--lavira_decision_probe` 仍然只请求 `decision_000`；需要多轮执行时使用
@@ -223,128 +221,6 @@ online_latest/fmm_path.png
 ```
 
 `lavira_global_map.npz` 现在也包含独立的 `collision_map`。
-
-#### 2026-07-29 真实 Qwen + 在线全局地图/FMM/STOP 验证
-
-运行目录：
-
-```text
-outputs/isaacsim_goal_tracking/lavira_offline/
-run_20260729_120927_509752/robot_01_online_navigation_test_001
-```
-
-任务：
-
-```text
-Go through the doorway, then turn left and stop near the bed.
-```
-
-本轮显式开启：
-
-```bash
---lavira_online_navigation \
---lavira_online_mapping_interval_s 1.0 \
---lavira_online_replan_interval_s 1.0 \
---lavira_backtrack_strategy replan_world_goal \
---nav_map_mode lavira_compatible_global \
---nav_global_unknown_space_policy blocked
-```
-
-真实 Qwen/Isaac 执行序列：
-
-```text
-decision_000 NAVIGATE left    -> 到达并提交 waypoint 0
-decision_001 NAVIGATE forward -> 到达并提交 waypoint 1
-decision_002 NAVIGATE forward -> 到达并提交 waypoint 2
-decision_003 NAVIGATE forward -> 到达并提交 waypoint 3
-decision_004 STOP forward     -> 已在 0.75m 阈值内，稳定 stand 并结束
-```
-
-结构化输出和日志交叉检查结果：
-
-| 项目 | 结果 |
-| --- | ---: |
-| Qwen 请求数 | 5 |
-| 已提交 history waypoint | 4 |
-| 决策时全局地图融合 | 5 |
-| 执行期在线地图融合 | 20 |
-| 在线 FMM 重规划/热替换 | 20 |
-| collision 事件 | 0 |
-| FMM/热替换失败 | 0 |
-| 最终 action | `STOP` |
-| 最终 controller 状态 | `completed`，robot standing |
-
-在线重规划按 decision 分布为 `10 + 6 + 2 + 2 = 20` 次。第一段 NAVIGATE 的初始全局路径为
-`0.903m`，同一个活动世界目标的在线剩余路径依次缩短为：
-
-```text
-0.794 -> 0.650 -> 0.525 -> 0.420 -> 0.324
-      -> 0.246 -> 0.196 -> 0.155 -> 0.143 -> 0.127m
-```
-
-这证明在线更新没有增加 decision、没有重新请求 Qwen，也没有随机改变模型目标；它只用最新
-地图重算到同一活动目标的路径。后续三段全局执行路径约为 `0.13–0.17m`，最终 forward 图中床
-已占据主要视野，属于床前的小步接近，不是机器人卡在原地。
-
-decision 004 的全局 FMM 起点约为 `[1.634, 4.781]`，安全目标约为
-`[1.726, 4.673]`，距离 `0.142m < 0.75m`，因此不再启动一次多余 locomotion，直接完成模型
-STOP。这里确认的是模型 STOP 的规划和执行语义；Isaac 侧仍没有 Habitat 数据集的 ground-truth
-success 判定。
-
-本轮没有返回 BACKTRACK，也没有产生 commanded non-progress，因此验证范围是：
-
-```text
-已真实验证：
-  在线 NAVIGATE + 累计地图 + 周期 FMM + 路径热替换 + STOP
-
-尚未由本轮验证：
-  在线 BACKTRACK
-  collision_count > 0 后的真实绕行
-```
-
-终端中的 ONNX Runtime DRM device discovery warning 不影响结果：当前 locomotion/stand
-ONNX 明确使用 CPU provider；Isaac RTX/PhysX 仍使用 `cuda:0`。Kit 的
-`IMemoryBudgetManagerFactory` 消息也是 performance warning，不是本轮失败。
-
-#### 当前实现与 LaViRA `qwen_end2end` 的对齐边界
-
-当前高层主链已经对齐：
-
-```text
-全部 history 文字 + 最近四个 waypoint 的 init/dir 图片
-  -> 当前 forward/left/behind/right 四视图
-  -> 单次 Qwen 输出 action/direction/target/bbox/waypoint
-  -> bbox 底边目标深度投影和可通行目标退让
-  -> episode 累计 full map
-  -> skfmm.distance(dx=1) + 五格局部目标
-  -> NAVIGATE / BACKTRACK / STOP
-  -> Qwen 明确选择 BACKTRACK waypoint
-  -> 旧 waypoint 决策位置作为世界目标
-  -> 接受 BACKTRACK 后立即截断 history
-  -> STOP 最终安全接近
-```
-
-仍然存在的主要差异：
-
-| 环节 | LaViRA `qwen_end2end` | 当前 Isaac/G1 |
-| --- | --- | --- |
-| Qwen 调用 | Habitat 进程内直接 `model.generate()` | schema v2 HTTP/SSH 远程调用并严格绑定 observation |
-| 四视图 | 单相机执行 12 次 30° 转向后抽取四帧 | 四台固定 RGB-D 在同一 physics step 同步采集 |
-| 地图通道 | 四个基础通道 + Grounded-SAM 动态语义类别 | 真实四个几何/位置通道；没有伪造语义通道 |
-| 未知区域 | 没有明确障碍的未知区通常可规划 | 实测默认 `blocked`，只进入已观测安全区；可切换 `lavira` |
-| 地图更新 | 每个 Habitat 离散 action 后更新 | G1 50Hz 控制之外按默认 1Hz navigation tick 更新 |
-| FMM 使用 | 每个离散 action 重算短期目标并输出一个动作 | 提取安全世界路径，周期重算后热替换 pure-pursuit 路径 |
-| 低层动作 | STOP/前进/左转/右转 | vx/vy/wz、29DOF locomotion、stand 平滑切换 |
-| collision | 单次 MOVE_FORWARD 位移不足时写方向 mask | 持续有效平移命令无进度后写前方圆形 mask |
-| waypoint 提交 | 先加入未完成记录，超时再删除，并去除近距离重复点 | 到达并稳定 stand 后提交；目前不删除近距离重复点 |
-| 超时恢复 | 删除未完成目标并重新看 panorama/请求模型 | 安全停止并把 controller 标为失败 |
-| episode | 运行到 Habitat done/STOP/max step | 仍有 `lavira_history_max_decisions` 有限边界 |
-| 评测 | success、SPL、nDTW、oracle success | 保存执行证据；尚无 Isaac ground-truth VLN 指标 |
-
-FMM 数学核心、history 图片预算、action schema、BACKTRACK waypoint 所有权和立即截断语义已经
-对齐。Habitat 离散动作与 G1 连续动力学属于必须保留的平台适配，不应通过复制代码强行消除。
-当前最主要的算法缺口是 Grounded-SAM 语义地图；当前最主要的 episode 缺口是持续运行、失败后
-重新决策和 ground-truth 评测。
 
 #### 2026-07-27 真实 Qwen + 累计全局地图运行审计
 
@@ -2120,14 +1996,7 @@ OK (skipped=1)
 - 跨进程退出/重启后的 episode 和 history 恢复。
 - Grounded-SAM semantic category 通道；当前累计的是 LaViRA 前四个几何/位置通道。
 - 在线地图目前由主线程按低频 navigation tick 同步抓取，尚未移动到独立建图 worker。
-- LaViRA 的近距离重复 waypoint 删除和目标失败后自动重新决策恢复。
-- 持续运行直到 STOP/环境终止；当前仍保留可配置的最大 decision 边界。
 - 完整 VLN episode success、SPL、碰撞率和超时评估。
-
-已经实现但尚未完成真实组合验证：
-
-- 在线模式下 Qwen 返回 BACKTRACK 后，返回途中持续更新地图并对同一历史目标重新 FMM。
-- 真实障碍导致 `collision_count > 0` 后，collision mask 触发新 FMM 路径并成功绕行。
 
 默认 `--lavira_decision_probe` 仍固定发送：
 
@@ -2172,27 +2041,100 @@ robot_01_global_backtrack_test_003：
   累计全局地图 FMM
   history 分别 3->1、2->1
   两次 status=arrived
-
-robot_01_online_navigation_test_001：
-  真实 Qwen 四次 NAVIGATE 后主动 STOP
-  20 次执行期全局地图融合
-  20 次同目标 FMM 重规划和运动中路径热替换
-  collision_count=0
-  STOP completed + robot standing
 ```
 
-BACKTRACK 和 STOP 都已按原版 LaViRA action 语义接入，并在累计全局地图模式下真实完成；
-在线 NAVIGATE/FMM/STOP 也已真实完成。原 README 中“把每次决策更新扩展为运动过程更新”这一项
-已经完成，不再列为下一步。
-
+BACKTRACK 和 STOP 都已按原版 LaViRA action 语义接入，并在累计全局地图模式下真实完成。
 接下来需要：
 
 ```text
-ONLINE BACKTRACK：返回途中持续融合地图、重算同一历史世界目标并完成到达
-COLLISION：在真实障碍前触发 collision_count > 0，验证新 FMM 路径和绕行
-BACKTRACK：使用数米级返回距离压力测试累计地图遮挡、未知区域和长路径执行
-SEMANTIC MAP：接入 Grounded-SAM 动态 semantic category 通道
-HISTORY：对齐 LaViRA 的近距离重复 waypoint 删除
-EPISODE：支持持续运行直到 STOP，并为卡住、超时和不可达增加重新决策恢复
+BACKTRACK：使用数米级返回距离进一步压力测试累计地图遮挡、未知区域和长路径执行
+MAPPING：把当前“每次决策更新”扩展为运动过程按步更新，并加入 semantic category 通道
+EPISODE：支持持续运行直到 STOP，并为卡住/不可达增加重新决策恢复
 评测：加入 ground-truth goal region、success、SPL 和碰撞统计
 ```
+
+
+测试过的代码：
+
+
+ssh -N \
+  -L 127.0.0.1:18765:127.0.0.1:8765 \
+  -o ExitOnForwardFailure=yes \
+  -o ServerAliveInterval=30 \
+  -o ServerAliveCountMax=3 \
+  wangchu@131.159.60.188
+
+
+cd /home/yile/projects/unitree-g1-isaaclab-project
+
+conda activate isaacsim
+
+export VK_ICD_FILENAMES=/etc/vulkan/icd.d/nvidia_icd.json
+
+python scripts/isaacsim_goal_tracking/isaacsim_path_follwing.py \
+  --mode switch \
+  --house \
+  --device cuda:0 \
+  --spawn 1.15 5.25 0.8 \
+  --four_rgbd_cameras \
+  --lavira_history_probe \
+  --lavira_history_max_decisions 10 \
+  --lavira_history_execution_timeout 45 \
+  --lavira_backtrack_strategy replan_world_goal \
+  --lavira_backtrack_max_path_m 6.0 \
+  --fmm_execute_max_path_m 2.5 \
+  --nav_map_mode lavira_compatible_global \
+  --nav_map_resolution_m 0.05 \
+  --nav_map_size_m 24.0 \
+  --nav_global_origin_mode spawn_center \
+  --nav_global_downscaling 2 \
+  --nav_global_center_reset_steps 25 \
+  --nav_global_unknown_space_policy blocked \
+  --no-lavira_online_navigation \
+  --lavira_server_url "http://127.0.0.1:18765/v1/lavira/decision" \
+  --lavira_timeout 90 \
+  --lavira_session_id "robot_01_global_backtrack_smooth_test_004" \
+  --instruction "This is a controller verification task. Create exactly two navigation waypoints before returning. If history contains 0 waypoints, output NAVIGATE toward a visible clear traversable floor region away from the starting position. If history contains 1 waypoint, output NAVIGATE again toward another visible clear traversable floor region farther from the starting position. As soon as history contains 2 or more waypoints, output BACKTRACK with waypoint 0. Do not output STOP before issuing BACKTRACK to waypoint 0." \
+  --max_steps 10000 \
+  --real-time \
+  --no-show_path
+
+加了不停更新的FMM和不停的累计全局地图 碰到碰撞重新规划:
+  cd /home/yile/projects/unitree-g1-isaaclab-project
+  conda activate isaacsim
+  export VK_ICD_FILENAMES=/etc/vulkan/icd.d/nvidia_icd.json
+
+python scripts/isaacsim_goal_tracking/isaacsim_path_follwing.py \
+  --mode switch \
+  --house \
+  --device cuda:0 \
+  --spawn 1.15 5.25 0.8 \
+  --four_rgbd_cameras \
+  --lavira_history_probe \
+  --lavira_history_max_decisions 10 \
+  --lavira_history_execution_timeout 45 \
+  --lavira_backtrack_strategy replan_world_goal \
+  --lavira_backtrack_max_path_m 6.0 \
+  --fmm_execute_max_path_m 2.5 \
+  --nav_map_mode lavira_compatible_global \
+  --nav_map_resolution_m 0.05 \
+  --nav_map_size_m 24.0 \
+  --nav_global_origin_mode spawn_center \
+  --nav_global_downscaling 2 \
+  --nav_global_center_reset_steps 25 \
+  --nav_global_unknown_space_policy blocked \
+  --lavira_online_navigation \
+  --lavira_online_mapping_interval_s 1.0 \
+  --lavira_online_replan_interval_s 1.0 \
+  --lavira_collision_command_speed_m_s 0.12 \
+  --lavira_collision_window_s 0.75 \
+  --lavira_collision_min_progress_m 0.04 \
+  --lavira_collision_mark_distance_m 0.45 \
+  --lavira_collision_mark_radius_m 0.15 \
+  --lavira_server_url "http://127.0.0.1:18765/v1/lavira/decision" \
+  --lavira_timeout 90 \
+  --lavira_session_id "robot_01_online_navigation_test_001" \
+  --instruction "Go through the doorway, then turn left and stop near the bed." \
+  --max_steps 10000 \
+  --real-time \
+  --no-show_path

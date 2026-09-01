@@ -3,6 +3,7 @@ from __future__ import annotations
 
 """Run the new local-frame combined-model + iPlanner flow in Isaac Sim."""
 
+import math
 import sys
 import time
 from pathlib import Path
@@ -64,14 +65,41 @@ parser.add_argument(
 parser.add_argument("--local_yaw_bias_rad_s", type=float, default=0.0)
 parser.add_argument("--local_replan_interval_s", type=float, default=0.1)
 parser.add_argument(
-    "--local_dead_reckoning_linear_scale_sim", type=float, default=1.0
+    "--local_navigation_rate_hz",
+    type=float,
+    default=20.0,
+    help=(
+        "High-level rotation/Pure-Pursuit update rate. The locomotion policy "
+        "remains at its trained 50 Hz rate and holds the latest command."
+    ),
 )
 parser.add_argument(
-    "--local_dead_reckoning_angular_scale_sim", type=float, default=1.0
+    "--local_dead_reckoning_linear_scale_sim", type=float, default=0.7
+)
+parser.add_argument(
+    "--local_dead_reckoning_angular_scale_sim", type=float, default=0.8
 )
 parser.add_argument("--local_action_timeout_s", type=float, default=60.0)
 parser.add_argument("--local_post_action_stand_s", type=float, default=0.8)
-parser.add_argument("--local_max_replan_failures", type=int, default=3)
+parser.add_argument(
+    "--local_history_max_waypoints",
+    type=int,
+    default=0,
+    help=(
+        "Maximum completed waypoints sent as model history. 0 (default) keeps "
+        "all text history; schema-v2 still attaches images only to the latest four."
+    ),
+)
+parser.add_argument(
+    "--local_max_decisions",
+    type=int,
+    default=0,
+    help=(
+        "Maximum combined-model decisions for this local episode. "
+        "0 (default) runs until model STOP, failure, Ctrl-C, or --max_steps. "
+        "This is independent of model history retention."
+    ),
+)
 parser.add_argument(
     "--local_use_isaac_odometry",
     action="store_true",
@@ -91,6 +119,15 @@ if not args_cli.instruction.strip():
     parser.error("The local VLN runner requires a non-empty --instruction.")
 if args_cli.num_envs != 1:
     parser.error("The local VLN runner currently requires --num_envs 1.")
+if args_cli.local_max_decisions < 0:
+    parser.error("--local_max_decisions must be >= 0; use 0 for unlimited.")
+if args_cli.local_history_max_waypoints < 0:
+    parser.error("--local_history_max_waypoints must be >= 0; use 0 for all history.")
+if (
+    not math.isfinite(args_cli.local_navigation_rate_hz)
+    or args_cli.local_navigation_rate_hz <= 0.0
+):
+    parser.error("--local_navigation_rate_hz must be finite and > 0.")
 if not args_cli.locomotion_onnx.exists():
     parser.error(f"Locomotion ONNX does not exist: {args_cli.locomotion_onnx}")
 if not args_cli.stand_onnx.exists():
@@ -138,6 +175,7 @@ from goal_tracking.control import (  # noqa: E402
 from goal_tracking.path import remove_bedroom_wardrobe_doors_from_stage  # noqa: E402
 
 from unified_vln.episode import EpisodeConfig, LocalEndToEndEpisode  # noqa: E402
+from unified_vln.control_schedule import FixedRateUpdateSchedule  # noqa: E402
 from unified_vln.iplanner_client import IPlannerClient  # noqa: E402
 from unified_vln.isaac_backend import (  # noqa: E402
     IsaacLocalFourViewCamera,
@@ -236,7 +274,16 @@ def run_local_switch(env, env_cfg, agent_cfg) -> None:
             session_id=args_cli.lavira_session_id,
             instruction=args_cli.instruction,
             warmup_steps=args_cli.lavira_decision_warmup_steps,
-            max_decisions=args_cli.lavira_history_max_decisions,
+            history_max_waypoints=(
+                None
+                if args_cli.local_history_max_waypoints == 0
+                else args_cli.local_history_max_waypoints
+            ),
+            max_decisions=(
+                None
+                if args_cli.local_max_decisions == 0
+                else args_cli.local_max_decisions
+            ),
             rotation_speed_rad_s=args_cli.local_rotation_speed_rad_s,
             rotation_duration_scale=args_cli.local_rotation_duration_scale_sim,
             rotation_settle_s=args_cli.local_rotation_settle_s,
@@ -245,7 +292,6 @@ def run_local_switch(env, env_cfg, agent_cfg) -> None:
             min_depth_m=args_cli.rgbd_camera_near,
             max_depth_m=args_cli.rgbd_camera_far,
             action_timeout_s=args_cli.local_action_timeout_s,
-            max_replan_failures=args_cli.local_max_replan_failures,
             output_dir=args_cli.local_output_dir,
         ),
         LocalFollowerConfig(
@@ -281,8 +327,31 @@ def run_local_switch(env, env_cfg, agent_cfg) -> None:
         f"dead_reckoning=({args_cli.local_dead_reckoning_linear_scale_sim:.3f},"
         f"{args_cli.local_dead_reckoning_angular_scale_sim:.3f}) "
         f"goal_tolerance={args_cli.local_goal_tolerance_m:.3f}m "
-        f"blind_yaw_radius={args_cli.local_blind_yaw_radius_m:.3f}m"
+        f"blind_yaw_radius={args_cli.local_blind_yaw_radius_m:.3f}m "
+        f"navigation_rate={args_cli.local_navigation_rate_hz:.1f}Hz "
+        f"policy_rate={1.0 / step_dt:.1f}Hz command_filter=direct-hold "
+        "history_limit="
+        + (
+            "all"
+            if args_cli.local_history_max_waypoints == 0
+            else str(args_cli.local_history_max_waypoints)
+        )
+        + " decision_limit="
+        + (
+            "unlimited"
+            if args_cli.local_max_decisions == 0
+            else str(args_cli.local_max_decisions)
+        )
     )
+    navigation_schedule = FixedRateUpdateSchedule(
+        args_cli.local_navigation_rate_hz,
+        first_dt_s=step_dt,
+    )
+    # Pure Pursuit updates ``held_command`` at 20 Hz.  The locomotion policy
+    # consumes that same command at 50 Hz, matching Uni's 20 Hz controller plus
+    # 50 Hz DDS resend thread.
+    held_command = np.zeros(3, dtype=np.float64)
+    held_desired_mode = "stand"
     last_applied_command = np.zeros(3, dtype=np.float64)
     step = 0
     while simulation_app.is_running() and (
@@ -290,21 +359,28 @@ def run_local_switch(env, env_cfg, agent_cfg) -> None:
     ):
         wall_start = time.time()
         timestamp = float(step) * step_dt
-        update = episode.update(
-            completed_step=step,
-            step_dt=step_dt,
-            timestamp=timestamp,
-            applied_command=last_applied_command,
-            stand_ready=_stand_ready(switch_state),
-            locomotion_ready=_locomotion_ready(switch_state),
-        )
-        command_controller.set_requested(*update.command.tolist())
-        if update.desired_mode == "stand":
-            command_controller.zero()
-        _request_mode(switch_state, update.desired_mode)
+        navigation_dt = navigation_schedule.due_dt(timestamp)
+        if navigation_dt is not None:
+            update = episode.update(
+                completed_step=step,
+                step_dt=navigation_dt,
+                timestamp=timestamp,
+                applied_command=last_applied_command,
+                stand_ready=_stand_ready(switch_state),
+                locomotion_ready=_locomotion_ready(switch_state),
+            )
+            held_command = update.command.copy()
+            held_desired_mode = update.desired_mode
 
-        command_for_env = command_controller.update_filtered(
-            step_dt, switch_state.should_zero_command()
+        command_controller.set_requested(*held_command.tolist())
+        if held_desired_mode == "stand":
+            command_controller.zero()
+        _request_mode(switch_state, held_desired_mode)
+
+        # Uni has no extra Python-side command ramp: publish the new target
+        # directly, then hold it until the next 20 Hz navigation update.
+        command_for_env = command_controller.update_direct(
+            switch_state.should_zero_command()
         )
         switch_state.update_waiting_for_stand(command_for_env, step_dt)
         set_velocity_command(raw_env, command_for_env)

@@ -172,6 +172,21 @@ class SwitchCommandController:
         clamp_command(self.filtered, self.env_cfg)
         return self.filtered
 
+    def update_direct(self, force_zero: bool = False) -> torch.Tensor:
+        """不做速度 ramp，直接返回已限幅目标命令。
+
+        Uni-LaViRA G1 的 Python 控制层会把 Pure Pursuit 输出直接写成最新 DDS
+        目标，再由 50 Hz 线程重复发送。Isaac 的复刻 runner 使用本方法获得相同
+        的上层命令语义；其他键盘/路径 runner 仍可继续调用 ``update_filtered``。
+        """
+
+        if force_zero:
+            self.filtered.zero_()
+        else:
+            self.filtered.copy_(self.requested)
+            clamp_command(self.filtered, self.env_cfg)
+        return self.filtered
+
     def _max_delta(self, dt: float) -> torch.Tensor:
         """根据命令范围和 ramp_duration 计算每个控制周期允许变化的最大量。"""
         ranges = self.env_cfg.commands.base_velocity.ranges

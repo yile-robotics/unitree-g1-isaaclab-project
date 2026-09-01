@@ -101,14 +101,14 @@ G1_LOCK_WAIST_CFG = ArticulationCfg(
             effort_limit={
                 #髋 yaw 最大力矩：88髋 roll 最大力矩：88髋 pitch 最大力矩：88膝盖最大力矩：139
                 ".*_hip_yaw_joint": 88.0,
-                ".*_hip_roll_joint": 88.0,
+                ".*_hip_roll_joint": 139.0,
                 ".*_hip_pitch_joint": 88.0,
                 ".*_knee_joint": 139.0,
             },
             velocity_limit={
-               # 这是关节最大速度 rad/s
+                # 这是关节最大速度 rad/s
                 ".*_hip_yaw_joint": 32.0,
-                ".*_hip_roll_joint": 32.0,
+                ".*_hip_roll_joint": 20.0,
                 ".*_hip_pitch_joint": 32.0,
                 ".*_knee_joint": 20.0,
             },
@@ -117,14 +117,14 @@ G1_LOCK_WAIST_CFG = ArticulationCfg(
                 ".*_hip_yaw_joint": 100.0,
                 ".*_hip_roll_joint": 100.0,
                 ".*_hip_pitch_joint": 100.0,
-                ".*_knee_joint": 200.0,
+                ".*_knee_joint": 150.0,
             },
             damping={
                 #这个是 PD 里的 Kd，数值越大，关节越不容易振荡。适当的阻尼可以帮助机器人更平稳地运动，减少过度振荡。
-                ".*_hip_yaw_joint": 2.5,
-                ".*_hip_roll_joint": 2.5,
-                ".*_hip_pitch_joint": 2.5,
-                ".*_knee_joint": 5.0,
+                ".*_hip_yaw_joint": 2.0,
+                ".*_hip_roll_joint": 2.0,
+                ".*_hip_pitch_joint": 2.0,
+                ".*_knee_joint": 4.0,
             },
             #armature 可以理解成电机侧的附加转动惯量加上 armature 后，关节运动会更像真实电机/减速器，有一点惯性
             armature={".*_hip_.*": 0.03, ".*_knee_joint": 0.03},
@@ -134,20 +134,20 @@ G1_LOCK_WAIST_CFG = ArticulationCfg(
         #脚踝也是 DCMotorCfg，因为脚踝也参与真实站立和平衡  脚踝软一点，可以让脚和地面接触更自然
         "feet": DCMotorCfg(
             joint_names_expr=[".*_ankle_pitch_joint", ".*_ankle_roll_joint"],
-            stiffness={".*_ankle_pitch_joint": 20.0, ".*_ankle_roll_joint": 20.0},
-            damping={".*_ankle_pitch_joint": 0.2, ".*_ankle_roll_joint": 0.1},
+            stiffness={".*_ankle_pitch_joint": 28.5, ".*_ankle_roll_joint": 28.5},
+            damping={".*_ankle_pitch_joint": 1.8, ".*_ankle_roll_joint": 1.8},
             effort_limit={".*_ankle_pitch_joint": 50.0, ".*_ankle_roll_joint": 50.0},
             velocity_limit={".*_ankle_pitch_joint": 37.0, ".*_ankle_roll_joint": 37.0},
             armature=0.03,
             saturation_effort=80.0,
         ),
-        #为什么腰用 ImplicitActuatorCfg？因为你现在训练站立/行走时，腰可能不是主要控制对象。这里更像是：用一个很强的 PD 把腰固定在默认位置
+        # 腰和手臂不作为 PPO action，用中高刚度 PD 保持默认姿态，贴近真机上半身位置锁定的用法。
         "waist": ImplicitActuatorCfg(
             joint_names_expr=["waist_yaw_joint"],
             effort_limit_sim=88.0,
             velocity_limit_sim=32.0,
-            stiffness=5000.0,
-            damping=5.0,
+            stiffness=300.0,
+            damping=8.0,
             armature=0.001,
         ),
         "arms": ImplicitActuatorCfg(
@@ -158,10 +158,26 @@ G1_LOCK_WAIST_CFG = ArticulationCfg(
                 ".*_elbow_joint",
                 ".*_wrist_.*_joint",
             ],
-            effort_limit_sim=300.0,
-            velocity_limit_sim=100.0,
-            stiffness=3000.0,
-            damping=10.0,
+            effort_limit_sim={
+                ".*_shoulder_pitch_joint": 25.0,
+                ".*_shoulder_roll_joint": 25.0,
+                ".*_shoulder_yaw_joint": 25.0,
+                ".*_elbow_joint": 25.0,
+                ".*_wrist_roll_joint": 25.0,
+                ".*_wrist_pitch_joint": 5.0,
+                ".*_wrist_yaw_joint": 5.0,
+            },
+            velocity_limit_sim={
+                ".*_shoulder_pitch_joint": 37.0,
+                ".*_shoulder_roll_joint": 37.0,
+                ".*_shoulder_yaw_joint": 37.0,
+                ".*_elbow_joint": 37.0,
+                ".*_wrist_roll_joint": 37.0,
+                ".*_wrist_pitch_joint": 22.0,
+                ".*_wrist_yaw_joint": 22.0,
+            },
+            stiffness=200.0,
+            damping=8.0,
             armature={".*_shoulder_.*": 0.001, ".*_elbow_.*": 0.001, ".*_wrist_.*_joint": 0.001},
         ),
     },

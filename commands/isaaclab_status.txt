@@ -1,2 +1,0 @@
-HEAD detached at v2.3.0
-nothing to commit, working tree clean
