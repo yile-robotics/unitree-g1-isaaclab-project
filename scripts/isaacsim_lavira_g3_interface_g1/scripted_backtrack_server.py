@@ -1,4 +1,8 @@
 #!/usr/bin/env python3
+# 中文导读：
+# 诊断服务：按预设脚本产生导航/返回决策，帮助确定性测试 BACKTRACK。
+# 它不是实际 Navigator 或 Recovery 模型，测试通过仅说明相关执行链路能处理这些预设输出。
+
 from __future__ import annotations
 
 """Deterministic schema-v2 decision server for physical BACKTRACK testing.

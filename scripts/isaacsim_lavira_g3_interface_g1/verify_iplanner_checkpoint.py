@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# 中文导读：
+# 离线检查工具：检查转换后的权重与目标网络是否匹配；不用于验证 G1 运动效果。
+
 from __future__ import annotations
 
 """Strict-load a converted checkpoint and run one deterministic CPU inference."""

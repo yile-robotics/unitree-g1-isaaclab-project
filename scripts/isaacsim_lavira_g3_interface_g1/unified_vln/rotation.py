@@ -1,3 +1,8 @@
+# 中文导读：
+# 旋转只输出 [0, 0, wz]；direction 决定相对转角，yaw_provider 可提供实际朝向反馈。
+# 此公共类保留无反馈时的定时回退；真机 SLAM 模式另在入口每轮前后检查位姿有效性。
+# 因此不要仅凭类名 TimedFixedSpeedRotation 就认为配置 SLAM 后仍只靠计时旋转。
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -153,6 +158,8 @@ class TimedFixedSpeedRotation:
             self.duration_s,
         )
 
+    # 公共旋转器会吞掉 provider 异常并返回 None，触发原有定时回退。
+    # 真机 SLAM 模式的严格失效检查放在 run_g1_real 控制调用前后，不在此函数中。
     def _read_yaw(self) -> float | None:
         """读取并验证 yaw；provider 自己负责判断消息是否已经过期。"""
 

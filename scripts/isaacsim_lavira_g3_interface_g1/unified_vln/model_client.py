@@ -1,3 +1,8 @@
+# 中文导读：
+# 这里只负责决策请求的序列化、HTTP 传输和响应校验，不在本机运行 Navigator。
+# 发往远端的是 RGB 图像与元数据；深度用于本地投影/iPlanner，不作为完整深度图发给此接口。
+# 历史包含已完成 waypoint；请求时冻结图像字节，避免后台 HTTP 使用被后续相机帧覆盖的数据。
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -236,6 +241,7 @@ class CombinedModelClient:
             images,
             include_instruction=self.send_instruction,
         )
+        # multipart 同时携带元数据与图像；与 Session 接口的纯 JSON 请求格式不同。
         http_request = Request(
             self.server_url,
             data=body,

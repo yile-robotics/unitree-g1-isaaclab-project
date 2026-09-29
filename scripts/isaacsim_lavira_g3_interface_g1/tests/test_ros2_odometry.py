@@ -34,6 +34,14 @@ def _message(x: float, y: float, z: float, yaw: float):
 
 
 class Ros2OdometryProviderTest(unittest.TestCase):
+    def test_world_coordinates_are_not_rebased_when_requested(self):
+        provider = Ros2OdometryProvider(start_node=False, preserve_world_coordinates=True)
+        provider.ingest_odometry(_message(2000.0, 3000.0, 0.0, 0.7))
+        pose = provider.get_pose()
+        self.assertAlmostEqual(pose.x, 2000.0)
+        self.assertAlmostEqual(pose.y, 3000.0)
+        self.assertAlmostEqual(pose.yaw, 0.7)
+
     def test_message_becomes_fresh_planar_pose(self):
         provider = Ros2OdometryProvider(start_node=False)
         provider.ingest_odometry(

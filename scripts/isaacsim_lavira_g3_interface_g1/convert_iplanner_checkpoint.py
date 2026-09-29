@@ -1,4 +1,8 @@
 #!/usr/bin/env python3
+# 中文导读：
+# 离线权重转换工具：把完整模型对象格式转换为服务端能加载的 state_dict，不参与导航主循环。
+# 完整对象反序列化可能执行代码，只对可信来源的权重使用；转换输出与原文件分开保存。
+
 from __future__ import annotations
 
 """Convert the official full-module iPlanner checkpoint to a safe state dict.

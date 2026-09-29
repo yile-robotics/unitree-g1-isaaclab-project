@@ -1,3 +1,8 @@
+# 中文导读：
+# 本文件只组织历史路径几何，不直接发送电机或速度命令。
+# 将已完成 waypoint 的实测世界路径反向拼接，校验起点偏差和长度，再选分段检查点。
+# 这是沿存储路线返回，不是在全局占据地图上搜索一条新的绕行路径。
+
 from __future__ import annotations
 
 """Pure BACKTRACK route construction helpers.

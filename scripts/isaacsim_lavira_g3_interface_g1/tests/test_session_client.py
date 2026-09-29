@@ -1116,6 +1116,43 @@ class G3SessionClientTest(unittest.TestCase):
         self.assertEqual(escaped.recovery_phase, "NAVIGATOR")
 
     @patch("unified_vln.session_client.urlopen")
+    def test_accepts_late_completion_failure_without_preempt_ack(
+        self, mocked_urlopen
+    ):
+        late_completion = {
+            **_control_payload("action_complete", decision_index=2),
+            "control": "CONTINUE",
+            "reason": "failure_confirmed_after_action_complete",
+            "next_action": "REQUEST_RECOVERY_DECISION",
+            "phase5": {
+                "status": "FAILURE_CONFIRMED_AFTER_COMPLETION",
+                "recovery_phase": "RECOVERY_PLANNING",
+                "preemption": {
+                    "accepted": True,
+                    "client_acknowledged": False,
+                    "server_side": True,
+                },
+            },
+        }
+        mocked_urlopen.side_effect = [
+            _Response(_start_payload()),
+            _Response(late_completion),
+        ]
+        client = G3SessionClient("http://server")
+        client.start_session(session_id="session-test", instruction="go")
+
+        control, _ = client.report_action_complete(
+            **_complete_kwargs(decision_index=2, waypoint_id=2)
+        )
+
+        self.assertEqual(control.control, "CONTINUE")
+        self.assertEqual(
+            control.reason, "failure_confirmed_after_action_complete"
+        )
+        self.assertEqual(control.next_action, "REQUEST_RECOVERY_DECISION")
+        self.assertEqual(control.recovery_phase, "RECOVERY_PLANNING")
+
+    @patch("unified_vln.session_client.urlopen")
     def test_rejects_decision_from_changed_stage_plan(self, mocked_urlopen):
         mocked_urlopen.return_value = _Response(_start_payload())
         client = G3SessionClient("http://server")

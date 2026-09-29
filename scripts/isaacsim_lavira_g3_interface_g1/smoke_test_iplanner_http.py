@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# 中文导读：
+# HTTP 冒烟测试：验证本机 iPlanner 接口和路径返回，不等于完成真实相机标定或物理避障验证。
+
 from __future__ import annotations
 
 """Exercise navigator_reset and pointgoal_step through the production client."""

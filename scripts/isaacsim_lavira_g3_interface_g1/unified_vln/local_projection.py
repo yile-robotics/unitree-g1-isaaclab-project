@@ -1,3 +1,7 @@
+# 中文导读：
+# 输入是模型选中方向的 bbox、对应深度和内参，输出是理想转向后的局部二维目标。
+# 这里不使用 SLAM 世界坐标，也没有完整相机外参变换；请与 map_progress 的地图投影区分。
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -81,6 +85,7 @@ def project_selected_view_target(
     height, width = frame.depth_m.shape
     bbox = response.clipped_bbox(width, height)
     x1, _y1, x2, y2 = bbox
+    # 使用底边中心来代表靠近物体底部的目标像素，而不是检测框几何中心。
     u = int((x1 + x2) / 2.0)
     v = int(y2)
 
@@ -115,6 +120,7 @@ def project_selected_view_target(
             goal_after_turn_xy_m=np.array([1.5, 0.0], dtype=np.float64),
             used_forward_fallback=True,
         )
+    # 默认第30百分位不是平均值：从已过滤的局部深度样本中选择相对偏近的深度。
     depth_m = float(np.percentile(valid, depth_percentile))
 
     K = np.asarray(frame.K, dtype=np.float64)

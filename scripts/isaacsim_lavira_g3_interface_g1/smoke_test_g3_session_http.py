@@ -1,4 +1,8 @@
 #!/usr/bin/env python3
+# 中文导读：
+# HTTP 冒烟测试：验证 G3 会话和决策/执行报告协议，不会驱动真实 G1。
+# 该测试使用的观测和报告不能作为机器人确实运动过的证明。
+
 from __future__ import annotations
 
 """Run the phase-three G3 lifecycle with an existing offline four-image case."""

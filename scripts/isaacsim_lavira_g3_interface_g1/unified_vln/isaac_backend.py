@@ -1,3 +1,7 @@
+# 中文导读：
+# 仅供 Isaac 仿真：把相机张量复制为独立 NumPy 帧，把机器人 root pose 适配为统一位姿接口。
+# 拷贝可避免环境下一次 step 更新原始缓存，导致已提交模型的观测发生变化。
+
 from __future__ import annotations
 
 import math

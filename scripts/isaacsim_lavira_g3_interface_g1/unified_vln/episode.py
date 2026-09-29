@@ -1,3 +1,34 @@
+# 中文导读：
+# 阅读提示：本文件是状态机，不是按文件从上到下执行一次。update 根据 self.state 选择分支。
+# 一轮高层 decision 可跨越许多控制周期、多次 iPlanner 重规划和多个 motion_window。
+# 普通完成、被抢占、STOP_CONFIRMED 是不同事件；沿函数调用阅读，不要把所有 STOP 分支混为一谈。
+
+"""LaViRA G3 机器人端单个 Episode 的主状态机。
+
+这个文件不实现 Navigator、Stage Planner 或 Recovery Planner 模型；这些角色在
+远端 LaViRA G3 服务器内运行。本文件负责把服务器的高层决策变成 Isaac Sim/
+真机 G1 可以执行的本地流程：
+
+    采集四方向 RGB-D
+        → 后台请求服务器决策
+        → bbox + depth 投影为机器人局部目标
+        → iPlanner 生成局部轨迹
+        → 轨迹跟随器输出 [vx, vy, wz]
+        → 约1秒一次上报 Motion Window
+        → 动作结束上报 action_complete
+        → 根据 CONTINUE/PREEMPT/SAFE_STOP 转移状态
+
+设计边界：
+
+* 外层 Isaac/G1 控制循环每帧调用 :meth:`LocalEndToEndEpisode.update`。
+* 本类只返回期望速度和期望模式，不直接操作机器人。
+* 慢速 HTTP/模型请求放在后台线程，等待期间主控制循环继续发送零速度。
+* 里程计、RGB-D 稀疏地图和 iPlanner 都在机器人端；服务器只接收冻结协议字段。
+* PREEMPT 始终先清除本地轨迹、保持零速度，再上报 PREEMPTED 确认。
+* ``COMPLETED/REACHED`` 只表示到达本地局部轨迹终点，不等于语义任务或 Recovery
+  已成功；后者由服务器 STOP/Escape 链路决定。
+"""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -77,9 +108,15 @@ class CameraBackend(Protocol):
 class EpisodeState:
     """导航回合状态常量。
 
-    一次典型循环为：预热 → 拍全景并决策 → 等待运动模式 → 原地转向 → 等待稳定
-    → 拍前视图并规划 → 等待运动模式 → 执行轨迹 → 恢复站立 → 下一次决策。
-    ``STOPPED`` 和 ``FAILED`` 是两个终止状态。
+    普通 NAVIGATE 主链路：
+
+    ``WARMUP → CAPTURE_AND_DECIDE → PANORAMA_* → WAITING_DECISION
+    → ROTATING → PLAN_AFTER_ROTATION → EXECUTING
+    → WAIT_ACTION_STAND → CAPTURE_AND_DECIDE``。
+
+    BACKTRACK 使用独立的 ``BACKTRACK_*`` 子状态，把世界坐标面包屑路径分段
+    交给 iPlanner。``STOPPED`` 表示任务协议成功或达到本地测试上限；
+    ``FAILED`` 表示安全失败终态（包括 Recovery SAFE_STOP）。
     """
 
     WARMUP = "warmup"
@@ -113,23 +150,33 @@ class EpisodeConfig:
     时间单位为秒、距离单位为米、角速度单位为 rad/s。
     """
 
+    # 远端 Session 标识和整个 Episode 只提交一次的自然语言任务。
     session_id: str
     instruction: str
+    # 启动后等待的传感器帧数，以及发给模型的历史/总决策数上限。
     warmup_steps: int = 5
     history_max_waypoints: int | None = None
     max_decisions: int | None = None
+    # 单相机全景和指定方向转身共用的旋转参数。
     rotation_speed_rad_s: float = 0.4
     rotation_duration_scale: float = 1.0
     rotation_settle_s: float = 0.5
+    # 动作结束后必须稳定站立的时间，避免运动模式立即切换。
     post_action_stand_s: float = 0.8
+    # iPlanner 原轨迹尾部预留的安全距离，不是 follower 的 goal tolerance。
     safe_distance_m: float = 0.5
+    # bbox 投影时允许使用的深度范围。
     min_depth_m: float = 0.1
     max_depth_m: float = 5.0
+    # 一次高层局部动作的超时上限，以及执行证据上报的目标周期。
     action_timeout_s: float = 60.0
     motion_window_s: float = 1.0
+    # 上报位姿的坐标系和重定位世代；SLAM重置时应增加 frame_epoch。
     pose_frame_id: str = "local_odom"
     frame_epoch: int = 0
+    # True：用唯一前向 RGB-D 连续旋转采集四个方向。
     single_forward_panorama: bool = False
+    # BACKTRACK 必须显式开启；以下参数限制面包屑回退的可执行范围。
     enable_backtrack: bool = False
     backtrack_max_path_m: float = 6.0
     backtrack_start_tolerance_m: float = 1.0
@@ -209,7 +256,12 @@ class EpisodeUpdate:
 
 @dataclass
 class _PendingAction:
-    """模型已决定、但尚未完成执行的一次动作所需的临时上下文。"""
+    """模型已决定、但尚未完成执行的一次 NAVIGATE 临时上下文。
+
+    ``projection`` 是 bbox/depth 得到的转向后局部目标；``decision_pose`` 是高层动作
+    被接受时的世界位姿，后续 action_complete 使用它计算动作首尾位移。
+    ``action_source`` 区分普通 ``NAVIGATOR`` 与 ``RECOVERY``。
+    """
 
     response: NavigationDecisionResponse
     panorama: PanoramaBundle
@@ -222,7 +274,12 @@ class _PendingAction:
 
 @dataclass
 class _BacktrackAction:
-    """One accepted model BACKTRACK and its physical stored-reverse route."""
+    """一次已接受 BACKTRACK 的物理执行上下文。
+
+    ``wire_waypoint_id`` 是服务器协议中的 ID，``target_waypoint_id`` 是本地历史记录 ID。
+    ``route`` 是从已测量世界路径反向构造的面包屑路线；下标和计数器用于将长路径
+    分成多个 iPlanner 局部段。
+    """
 
     response: NavigationDecisionResponse
     route: StoredReverseRoute
@@ -242,7 +299,11 @@ class _BacktrackAction:
 
 @dataclass
 class _PanoramaSweep:
-    """One four-view panorama captured by rotating a single forward RGB-D."""
+    """单个前向 RGB-D 通过连续旋转一圈生成的四视图临时结果。
+
+    ``views`` 保存 forward/left/behind/right 图像，``capture_poses`` 保存每张图对应的
+    实测位姿，便于检查旋转采集是否到达预期方向。
+    """
 
     views: dict[str, ViewFrame]
     decision_pose: Pose2D | None
@@ -252,7 +313,11 @@ class _PanoramaSweep:
 
 @dataclass
 class _DecisionTask:
-    """One in-flight model request for the physical single-camera path."""
+    """一个正在后台线程中执行的模型决策请求。
+
+    图像和 decision index 在启动线程前已冻结。工作线程只写入 ``response``/
+    ``raw_response``/「``error``」并设置 ``done``；真正的状态转移仍由控制线程完成。
+    """
 
     decision_index: int
     panorama: PanoramaBundle
@@ -268,6 +333,15 @@ class LocalEndToEndEpisode:
 
     外部控制循环每步调用一次 ``update``，状态机只返回期望模式和速度，不直接
     操纵机器人。这样同一流程既可接 Isaac Sim，也可接真实 G1 控制后端。
+
+    类中有三类不同层级的“完成”：
+
+    * follower ``reached``：到达本地安全轨迹终点；
+    * ``action_complete``：一次高层 NAVIGATE/BACKTRACK 物理执行结束；
+    * Episode ``STOPPED``：服务器 STOP Gate 确认整个语义任务完成。
+
+    Recovery 动作即使本地 ``COMPLETED``，也要继续等待 Escape Evaluator 返回
+    ``REQUEST_DECISION``（成功 Handback）或 ``REQUEST_RECOVERY_DECISION``（继续恢复）。
     """
 
     def __init__(
@@ -285,6 +359,7 @@ class LocalEndToEndEpisode:
     ):
         """装配各组件、初始化所有计时器，并按需创建本回合日志目录。"""
 
+        # 固定依赖和经过集中校验的配置。
         self.config = config.validated()
         self.camera = camera
         self.model = model
@@ -299,21 +374,28 @@ class LocalEndToEndEpisode:
         self.odometry = odometry or NullOdometryProvider()
         self.follower = LocalTrajectoryFollower(follower_config, self.odometry)
         self.follower_config = follower_config.validated()
+        # -------------------- 高层状态与模型历史 --------------------
         self.state = EpisodeState.WARMUP
         self.history: list[CompletedWaypoint] = []
+        # 本次请求真正发给服务器的历史子集；旧式 BACKTRACK 索引以它为准。
         self._wire_history_records: tuple[CompletedWaypoint, ...] = ()
         self.decision_index = 0
+        # 三类互斥的活动上下文：普通动作、BACKTRACK、单相机全景。
         self.pending: _PendingAction | None = None
         self.backtrack: _BacktrackAction | None = None
         self.panorama_sweep: _PanoramaSweep | None = None
+        # 后台模型请求只能同时存在一个。
         self._decision_task: _DecisionTask | None = None
         self.next_panorama_bundle_id = 0
         self._active_world_trace: list[np.ndarray] = []
+        # -------------------- 动作计时、失败与日志 --------------------
         self.failure_reason: str | None = None
         self.session_success_reason: str | None = None
         self.rotation_settle_elapsed_s = 0.0
         self.action_stand_elapsed_s = 0.0
         self.action_elapsed_s = 0.0
+        # -------------------- Motion Window 窗口基线 --------------------
+        # window_index 在每个 decision 中从0递增；窗口位移是首尾直线距离。
         self.motion_window_index = 0
         self.next_motion_window_elapsed_s = self.config.motion_window_s
         self.pose_frame_id = self.config.pose_frame_id
@@ -322,6 +404,7 @@ class LocalEndToEndEpisode:
         self._motion_window_start_goal_distance_m: float | None = None
         self._map_window_explored_before: int | None = None
         self._map_update_failures = 0
+        # -------------------- iPlanner/动作收尾上下文 --------------------
         self.replan_failures = 0
         self.last_fear: float | None = None
         self.iplanner_history: list[str] = []
@@ -331,9 +414,13 @@ class LocalEndToEndEpisode:
         self._action_planner_result = "REACHED"
         self._action_reached_local_goal = True
         self._action_final_pose: Pose2D | None = None
+        # 用 decision index 防止同一高层动作重复上报 action_complete。
         self._reported_action_complete_indices: set[int] = set()
+        # 服务器稳定 Waypoint Registry ID 到本地 history 下标的映射。
         self._server_waypoint_to_local_index: dict[int, int] = {}
+        # True 表示下一次 /decision 必须来自 Recovery Planner，不允许普通 Navigator 插入。
         self._recovery_expected = False
+        # SAFE_STOP 是协议失败终态，不是普通 STOP 任务成功。
         self._safe_stop_requested = False
         self.session_failure_reason: str | None = None
         self._remote_session_active = False
@@ -349,12 +436,23 @@ class LocalEndToEndEpisode:
 
     @property
     def remote_session_active(self) -> bool:
-        """Whether this episode currently owns an ACTIVE server-side session."""
+        """当前对象是否拥有一个尚未结束的远端 G3 Session。
+
+        只有返回 True 时才可发送 decision/execution report/end_session，防止本地重复结束
+        或向已结束 Session 继续上报。
+        """
 
         return self._remote_session_active and not self._remote_session_ended
 
+    # 地图对象和位姿是本地执行上报的准备条件，不是 start_session JSON 的上传字段。
+    # 此时地图可以尚未融合任何相机帧；实际探索数据在后续采集时累积。
     def start_remote_session(self) -> None:
-        """Run health/start_session once before the first panorama decision."""
+        """在第一次全景决策前执行一次健康检查和 ``start_session``。
+
+        启动前强制检查稀疏地图和里程计，因为阶段3协议的 Motion Window 必须包含
+        真实位姿和 ``map_progress``。instruction 只在这里提交，服务器在 Session 中保存
+        Frozen Stage Plan；后续 decision 通过 session_id 取回任务。
+        """
 
         if self.session_client is None:
             return
@@ -376,6 +474,7 @@ class LocalEndToEndEpisode:
             session_id=self.config.session_id,
             instruction=self.config.instruction,
         )
+        # 服务响应已被 client 解析验证，至此 Episode 才拥有活动远端会话。
         self._remote_session_active = True
         self._remote_session_ended = False
         self._save_json("g3_session_started.json", raw_started)
@@ -386,7 +485,11 @@ class LocalEndToEndEpisode:
         )
 
     def end_remote_session(self, *, status: str, reason: str) -> None:
-        """End the owned server-side session once; safe to call during cleanup."""
+        """最多结束一次当前远端 Session，可在正常结束或异常清理中调用。
+
+        ``status=SUCCESS`` 只应用于 STOP_CONFIRMED；Recovery SAFE_STOP、本地异常或人工中断
+        应以 ``FAILURE`` 结束并保留明确 reason。
+        """
 
         if self.session_client is None or not self.remote_session_active:
             return
@@ -423,6 +526,13 @@ class LocalEndToEndEpisode:
         参数中的 ``stand_ready``/``locomotion_ready`` 由外层机器人模式控制器给出；
         状态机只有在对应模式准备好后才发运动命令。``applied_command`` 是上一周期
         实际执行速度，供无里程计的航位推算使用。
+
+        处理优先级是：
+
+        1. 等待模型时只轮询后台任务，继续返回零速度；
+        2. BACKTRACK 和单相机全景使用各自子状态；
+        3. 普通旋转/规划/跟随在主分支执行；
+        4. 任何未捕获异常都转成 ``FAILED`` 并强制零速度。
         """
 
         if step_dt <= 0.0:
@@ -542,6 +652,7 @@ class LocalEndToEndEpisode:
                     )
                     return self._result(command)
 
+                # 每轮计算一个速度目标，不需要先走到前瞻点才能进行下一轮计算。
                 follower_output = self.follower.update(step_dt, applied_command)
                 if follower_output.abort_reason is not None:
                     print(
@@ -555,6 +666,7 @@ class LocalEndToEndEpisode:
                     )
                     return self._result(command)
                 if follower_output.reached:
+                    # 这里只结束局部动作，任务是否成功仍由 G3 STOP Gate 确认。
                     self._begin_action_finish()
                     return self._result(command)
                 command[:] = follower_output.command
@@ -567,6 +679,7 @@ class LocalEndToEndEpisode:
                     )
                     return self._result(command)
 
+                # 此处同步等待 iPlanner；远端模型 decision 则使用后台请求线程。
                 if self.follower.needs_replan():
                     replan_started_at = time.time()
                     # 使用最新前视 RGB-D 和更新后的局部目标重新规划，修正环境变化。
@@ -612,11 +725,11 @@ class LocalEndToEndEpisode:
     def _capture_forward_observation(
         self, completed_step: int, timestamp: float
     ) -> tuple[ViewFrame, Pose2D | None]:
-        """Capture one physical forward frame and fuse it into the sparse map.
+        """采集一帧物理前向 RGB-D，并尝试融合到 Episode 稀疏地图。
 
-        Mapping is diagnostic evidence and must not stop an otherwise safe
-        navigation action.  A bad frame is therefore logged and skipped while
-        the RGB-D frame remains available to the model/iPlanner path.
+        返回 ``(frame, pose)``。地图是 Physical Monitor 的证据和本地日志，不参与 iPlanner
+        避障；地图单帧融合失败不应中断一个原本安全的导航动作。因此映射异常只记录
+        ``_map_update_failures``，RGB-D 仍可继续供模型或 iPlanner 使用。
         """
 
         frame = self.camera.capture_forward(completed_step, timestamp).validated()
@@ -644,7 +757,11 @@ class LocalEndToEndEpisode:
 
     @staticmethod
     def _relabel_forward_frame(frame: ViewFrame, direction: str) -> ViewFrame:
-        """Copy one physical forward-camera frame under a panorama direction."""
+        """深拷贝一张物理前向相机帧，并将它标记为当前全景方向。
+
+        机器人转到 left/behind/right 时，硬件上仍是同一个 forward 相机；这个函数只改
+        协议语义中的 direction，同时复制 RGB/depth/K，防止后续相机缓冲区复用数组。
+        """
 
         if direction not in DIRECTION_ORDER:
             raise ValueError(f"Unsupported panorama direction {direction!r}.")
@@ -662,7 +779,12 @@ class LocalEndToEndEpisode:
     def _start_single_camera_panorama(
         self, completed_step: int, timestamp: float
     ) -> None:
-        """Capture forward, then request four consecutive left quarter-turns."""
+        """启动一次单前向相机的四方向全景采集。
+
+        先在当前朝向采集 ``forward``，再请求进入 locomotion 模式。后续连续完成四次
+        90°左转，前三次结束时分别采集 left/behind/right，第四次只用来回到参考
+        朝向。这一过程不切换到 stand，减少真机频繁模式切换。
+        """
 
         if self.panorama_sweep is not None:
             raise RuntimeError("A single-camera panorama sweep is already active.")
@@ -692,7 +814,14 @@ class LocalEndToEndEpisode:
         timestamp: float,
         locomotion_ready: bool,
     ) -> np.ndarray:
-        """Rotate continuously and capture at each completed 90-degree segment."""
+        """推进单相机全景的一个控制周期，返回当前 ``[vx, vy, wz]``。
+
+        * ``WAIT_PANORAMA_LOCOMOTION``：等待行走策略接管，期间零速度。
+        * ``PANORAMA_ROTATING``：输出纯 yaw 命令，每90°分段结束立即采图。
+        * ``PANORAMA_DECIDE``：固定四张图和位姿日志，启动后台模型请求。
+
+        HTTP 请求不在这个控制调用中同步等待，因此 Isaac/真机主循环不会被冻结。
+        """
 
         if self.panorama_sweep is None:
             raise RuntimeError("Single-camera panorama state has no active sweep.")
@@ -769,6 +898,8 @@ class LocalEndToEndEpisode:
         return command
 
     def _save_single_camera_panorama_trace(self, sweep: _PanoramaSweep) -> None:
+        """保存四张图的帧号、时间戳和采集位姿，不修改决策数据。"""
+
         def pose_dict(pose: Pose2D | None) -> dict | None:
             if pose is None:
                 return None
@@ -798,7 +929,11 @@ class LocalEndToEndEpisode:
         )
 
     def _capture_and_decide(self, completed_step: int, timestamp: float) -> None:
-        """Legacy simultaneous-camera diagnostic path."""
+        """旧的多相机同时采集诊断路径。
+
+        当 ``single_forward_panorama=False`` 时才使用。它依赖 camera backend 直接提供
+        ``capture_panorama``，不是当前真机计划使用的默认路径。
+        """
 
         capture_panorama = getattr(self.camera, "capture_panorama", None)
         if not callable(capture_panorama):
@@ -815,7 +950,11 @@ class LocalEndToEndEpisode:
         *,
         decision_pose: Pose2D | None,
     ) -> None:
-        """Synchronous legacy four-camera diagnostic decision path."""
+        """在旧多相机诊断路径中同步请求一次模型决策。
+
+        此方法会阻塞调用线程，所以不应用于实际单相机 G1 主流程；主流程使用
+        ``_start_decision_request`` + ``_poll_decision_request``。
+        """
 
         request, images = self._build_decision_request(panorama)
         self._save_json(
@@ -835,7 +974,12 @@ class LocalEndToEndEpisode:
         )
 
     def _build_decision_request(self, panorama: PanoramaBundle):
-        """Freeze one request and all image bytes on the control thread."""
+        """在控制线程中冻结一次 decision 的 metadata、历史和所有图像字节。
+
+        先根据 ``history_max_waypoints`` 选出协议允许的历史，再构建最近 waypoint 的文字与
+        图像字段。冻结后后台线程不再读取正在变化的相机或 history，避免请求内部数据
+        不一致。
+        """
 
         self._wire_history_records = select_model_history_records(
             self.history,
@@ -861,7 +1005,12 @@ class LocalEndToEndEpisode:
         *,
         decision_pose: Pose2D | None,
     ) -> None:
-        """Start one background model request for an immutable panorama."""
+        """为已冻结全景启动唯一的后台模型请求。
+
+        方法立即把状态转为 ``WAITING_DECISION``。daemon worker 仅执行 HTTP/模型调用并
+        写入 ``_DecisionTask``；等待期间 ``update`` 持续返回 locomotion 模式下的零速度，
+        符合真机速度指令需要持续刷新的要求。
+        """
 
         if self._decision_task is not None:
             raise RuntimeError("A model decision request is already in flight.")
@@ -903,7 +1052,11 @@ class LocalEndToEndEpisode:
         )
 
     def _poll_decision_request(self) -> None:
-        """Apply a completed response without blocking a control tick."""
+        """非阻塞轮询后台 decision，完成后在控制线程应用响应。
+
+        未完成时直接返回；完成后先检查 worker 异常、raw JSON 和 decision index，再落盘并
+        进入统一的 ``_apply_decision_response``。这样所有状态变更只发生在主控制线程。
+        """
 
         task = self._decision_task
         if task is None:
@@ -940,7 +1093,19 @@ class LocalEndToEndEpisode:
         response: NavigationDecisionResponse | None,
         raw_response: dict,
     ) -> None:
-        """Validate supervision and apply the existing action transition."""
+        """校验 G3 监督字段，并按 ``control`` 优先级应用高层动作。
+
+        关键优先级：
+
+        1. ``control=SAFE_STOP``：不再解释普通 Navigator 动作，直接安全失败收尾；
+        2. ``control=PREEMPT``：验证候选来源，不执行该决策的运动，转入 PREEMPTED ack；
+        3. STOP：交给阶段4 STOP Gate 状态处理；
+        4. BACKTRACK：将服务器 waypoint 解析成本地面包屑回退路线；
+        5. NAVIGATE：用选中视图 bbox/depth 投影局部目标，再转向和调用 iPlanner。
+
+        ``action_source`` 同时作为 Recovery 状态机守卫：服务器要求 Recovery 时不允许返回
+        普通 Navigator，反之亦然。
+        """
 
         supervision: G3DecisionSupervision | None = None
         if self.session_client is not None and self.remote_session_active:
@@ -1034,7 +1199,8 @@ class LocalEndToEndEpisode:
             f"decision_{self.decision_index:03d}_projection.json",
             projection.to_dict(),
         )
-        #把这次的状态保存起来 用来给以后时候的决策做参考
+        # 保存这次已接受动作的决策图像、投影目标和位姿。
+        # 动作物理完成后才会转成 CompletedWaypoint 加入模型历史。
         self.pending = _PendingAction(
             response=response,
             panorama=panorama,
@@ -1073,7 +1239,12 @@ class LocalEndToEndEpisode:
         response: NavigationDecisionResponse,
         supervision: G3DecisionSupervision,
     ) -> None:
-        """Acknowledge a verified decision-level PREEMPT without locomotion."""
+        """接受已经独立 Verifier 确认的“决策阶段 PREEMPT”，不执行运动。
+
+        当前冻结协议只允许两种来源：Semantic Audit 抢占 NAVIGATE，以及
+        PREMATURE_STOP 抢占 STOP。本方法创建一个仅用于回报的 pending 上下文，立即进入
+        零速度站稳流程，随后发送 ``action_complete=PREEMPTED`` 作为原子抢占确认。
+        """
 
         preempt_source = getattr(supervision, "preempt_source", None)
         expected_action = {
@@ -1115,8 +1286,15 @@ class LocalEndToEndEpisode:
             "no locomotion, holding zero velocity before Recovery acknowledgement"
         )
 
+    # 这是有活动 G3 Session 的 STOP 路径；与旧无 Session 模式的“最后靠近后停止”不同。
     def _handle_phase4_stop(self, supervision: G3DecisionSupervision) -> None:
-        """Apply the deployed phase-four STOP response without executing motion."""
+        """处理阶段4 STOP Gate 响应，STOP 本身不产生运动或 action_complete。
+
+        * ``STOP_CONFIRMED``：任务成功，保持站立并等外层 ``end_session(SUCCESS)``；
+        * ``STOP_PENDING``：有效 Stage Progress 证据还不足，重新拍全景请求下一次决策；
+        * ``PREMATURE_STOP``：STOP Gate 不认可任务完成。未被P0 Verifier升级为PREEMPT时，
+          同样重新请求决策；已升级的情况在更早的 ``control=PREEMPT`` 分支处理。
+        """
 
         stop_phase = supervision.stop_phase
         if supervision.stop_gate is None or stop_phase is None:
@@ -1155,7 +1333,18 @@ class LocalEndToEndEpisode:
         stable_registry_id: bool = False,
         action_source: str = "NAVIGATOR",
     ) -> None:
-        """Resolve a wire waypoint id and accept a stored-reverse physical return."""
+        """解析服务器 waypoint ID，构造并接受一次 stored-reverse 物理回退。
+
+        有两种 ID 语义：
+
+        * Recovery BACKTRACK：``waypoint`` 是服务器 Waypoint Registry 的稳定 ID，必须通过
+          ``_server_waypoint_to_local_index`` 查到本地实测历史；
+        * 旧式 Navigator BACKTRACK：``waypoint`` 是当前请求中被截断的 wire history 下标。
+
+        解析后从 CompletedWaypoint 中保存的世界路径反向构造 route，立即剪掉目标分支
+        之后的历史，再按 ``backtrack_segment_length_m`` 分段执行。若已在目标容差内，
+        不发送任何运动速度，直接进入完成上报。
+        """
 
         wire_waypoint = response.waypoint
         if wire_waypoint is None:
@@ -1254,7 +1443,12 @@ class LocalEndToEndEpisode:
         applied_command: np.ndarray,
         locomotion_ready: bool,
     ) -> np.ndarray:
-        """Advance one physical BACKTRACK control tick."""
+        """推进物理 BACKTRACK 的一个控制周期，返回 ``[vx, vy, wz]``。
+
+        每个 checkpoint 都按“世界目标转到机器人局部坐标 → 原地对准 → iPlanner
+        规划 → follower执行”的顺序处理。只有 ``BACKTRACK_EXECUTING`` 的真实平移期间才会
+        定期上报 Motion Window。若服务器在窗口响应中返回 PREEMPT，立即清除当前轨迹。
+        """
 
         if self.backtrack is None:
             raise RuntimeError("BACKTRACK state has no active context.")
@@ -1328,7 +1522,12 @@ class LocalEndToEndEpisode:
         return command
 
     def _atomic_preempt_active_action(self, reason: str) -> None:
-        """Cancel the current local path and prepare one PREEMPTED report."""
+        """原子取消当前本地动作，并准备唯一的 PREEMPTED 完成上报。
+
+        “原子”在机器人端意味着：先 ``follower.stop()`` 清除旧 iPlanner 路径，当前周期
+        立即返回零速度，等机器人稳定站立后才向服务器确认
+        ``action_complete=PREEMPTED``。确认前不会请求 Recovery。
+        """
 
         if self.pending is None and self.backtrack is None:
             raise RuntimeError("PREEMPT has no active local action to cancel.")
@@ -1345,6 +1544,8 @@ class LocalEndToEndEpisode:
         )
 
     def _require_backtrack_pose(self) -> Pose2D:
+        """取得并校验 BACKTRACK 必需的 Isaac/SLAM 世界位姿，缺失时安全失败。"""
+
         pose = self.odometry.get_pose()
         if pose is None:
             raise RuntimeError(
@@ -1355,6 +1556,13 @@ class LocalEndToEndEpisode:
     def _plan_backtrack_checkpoint(
         self, completed_step: int, timestamp: float
     ) -> None:
+        """将当前世界坐标 checkpoint 转换为局部目标，并用最新前视 RGB-D 规划。
+
+        BACKTRACK 使用独立的较小 goal tolerance，不受普通 NAVIGATE 的 1.0m tolerance
+        影响。旋转与规划时的地图变化不算平移进展，因此只在 follower 真正开始后
+        重置 Motion Window 基线。
+        """
+
         if self.backtrack is None:
             raise RuntimeError("No BACKTRACK checkpoint is active.")
         pose = self._require_backtrack_pose()
@@ -1415,6 +1623,12 @@ class LocalEndToEndEpisode:
     def _replan_backtrack_checkpoint(
         self, completed_step: int, timestamp: float
     ) -> None:
+        """对正在执行的 BACKTRACK checkpoint 进行周期性 iPlanner 重规划。
+
+        规划失败只记录警告，保留原轨迹；无论成功与否都更新重规划时间，避免在
+        每个控制周期对失效服务连续重试。
+        """
+
         if self.backtrack is None or not self.follower.active:
             return
         replan_started_at = time.time()
@@ -1435,6 +1649,8 @@ class LocalEndToEndEpisode:
         self.follower.mark_replan_attempt(replan_started_at)
 
     def _advance_backtrack_checkpoint(self) -> None:
+        """标记当前 BACKTRACK 分段完成，选择下一 checkpoint 或进入动作收尾。"""
+
         if self.backtrack is None:
             raise RuntimeError("No BACKTRACK route is active.")
         self.backtrack.route_cursor = self.backtrack.checkpoint_index
@@ -1452,10 +1668,21 @@ class LocalEndToEndEpisode:
         )
         self.state = EpisodeState.BACKTRACK_ROTATING
 
+    # 目标来自此前选中视图的投影，规划输入图像则是转向后新拍的前视帧。
+    # fear 在本地用于记录，不会自动把风险分数换成速度或截短距离。
     def _capture_forward_and_plan(
         self, completed_step: int, timestamp: float
     ) -> None:
-        """转向完成后获取新前视 RGB-D，请求 iPlanner 并启动局部跟随。"""
+        """转向完成后获取新前视 RGB-D，请求 iPlanner 并启动局部跟随。
+
+        模型 bbox 投影得到的目标是「理想局部目标」；iPlanner 返回从机器人到该目标的轨迹。
+        然后 ``truncate_trajectory_for_safety`` 从轨迹末尾留出 ``safe_distance_m``，截短后的
+        ``safe_path[-1, :2]`` 才是 follower 真正追踪的安全目标。``fear`` 在这里只记录，
+        不参与客户端截断长度计算。
+
+        若截短后目标本身落在 follower goal tolerance 内，本地动作可以很快返回
+        ``COMPLETED/REACHED``；这仍不代表 Recovery Escape 或整个语义任务完成。
+        """
 
         if self.pending is None:
             raise RuntimeError("No pending action exists after rotation.")
@@ -1536,7 +1763,12 @@ class LocalEndToEndEpisode:
         reason: str = "local_action_completed",
         planner_result: str | None = None,
     ) -> None:
-        """结束当前路径跟随，进入等待机器人稳定站立的收尾阶段。"""
+        """结束当前路径跟随，进入等待机器人稳定站立的收尾阶段。
+
+        该方法不立即发 action_complete：先记录最终位姿、清除 follower 并把结果规范为
+        ``COMPLETED/FAILED/PREEMPTED`` 及 ``REACHED/TIMEOUT/...``，再转到
+        ``WAIT_ACTION_STAND``。只有站稳持续时间达标后，``_commit_or_stop`` 才对服务器上报。
+        """
 
         self._record_world_trace(force=True)
         self._action_final_pose = self.odometry.get_pose()
@@ -1561,8 +1793,21 @@ class LocalEndToEndEpisode:
         self.action_stand_elapsed_s = 0.0
         self.state = EpisodeState.WAIT_ACTION_STAND
 
+    # 只把成功动作登记到 CompletedWaypoint；服务器 next_action 可以要求继续恢复或返回普通导航。
     def _commit_or_stop(self) -> None:
-        """动作稳定完成后保存结果；STOP 则终止，否则提交历史并继续决策。"""
+        """机器人稳定站立后上报 action_complete，并执行服务器的下一步控制。
+
+        处理要点：
+
+        * ``SAFE_STOP`` 优先级最高，直接进入失败终态；
+        * PREEMPTED ack 必须换来 ``REQUEST_RECOVERY_DECISION``，否则视为协议错误；
+        * FAILED/PREEMPTED 动作不写入 CompletedWaypoint，避免污染 Navigator 历史；
+        * COMPLETED NAVIGATE 才保存图像、decision/arrival pose 和实测面包屑；
+        * 普通 NAVIGATE 完成后若服务器才确认失败，直接等待 Recovery decision，不补发
+          ``action_complete=PREEMPTED``；
+        * Recovery COMPLETED 还要根据 Escape Evaluator 的 ``next_action`` 决定继续 Recovery 或
+          Handback 到 Navigator。
+        """
 
         if self.backtrack is not None:
             self._commit_backtrack()
@@ -1659,11 +1904,23 @@ class LocalEndToEndEpisode:
                     "success returned control to Navigator"
                 )
         else:
-            self._recovery_expected = False
+            # Late-completion failure：本地动作已经以 COMPLETED 结束并登记 waypoint 后，
+            # 服务器才由 Physical Monitor/Verifier 确认需要恢复。此时动作已经终止，不能
+            # 伪造 PREEMPTED ack；下一次 decision 应直接接受 Recovery Planner 的结果。
+            self._recovery_expected = next_action == "REQUEST_RECOVERY_DECISION"
+            if self._recovery_expected:
+                print(
+                    "[LOCAL-VLN G3] LATE_COMPLETION_RECOVERY: terminal action "
+                    "was recorded; requesting Recovery without PREEMPTED ack"
+                )
         self._advance_decision("action completion")
 
     def _advance_decision(self, reason: str) -> None:
-        """Advance exactly one high-level index and request the next decision."""
+        """高层 decision index 严格增加一次，然后重新进入全景采集。
+
+        decision index 是 Session 内的高层因果顺序，不是仿真帧号；一个 decision 可以包含
+        多条 Motion Window，但只能有一条 action_complete。
+        """
 
         self.decision_index += 1
         if (
@@ -1679,7 +1936,12 @@ class LocalEndToEndEpisode:
         self.state = EpisodeState.CAPTURE_AND_DECIDE
 
     def _enter_safe_stop(self) -> None:
-        """Fail closed after the server exhausts the Recovery budget."""
+        """服务器判定 Recovery 预算耗尽后执行 fail-closed 安全停止。
+
+        立即停止 follower，丢弃 pending/BACKTRACK 轨迹，清空 Recovery 期待并进入 ``FAILED``。
+        外层随后以 ``end_session(FAILURE, recovery_safe_stop)`` 结束会话。这个 FAILED 是
+        “任务未完成但已安全收尾”，不是 Python 崩溃。
+        """
 
         self.follower.stop()
         self.backtrack = None
@@ -1695,7 +1957,13 @@ class LocalEndToEndEpisode:
         )
 
     def _commit_backtrack(self) -> None:
-        """Report BACKTRACK and follow the server Escape/Handback transition."""
+        """上报 BACKTRACK 结果，并根据 Escape/Handback 状态转移收尾。
+
+        Recovery BACKTRACK 成功到达 waypoint 也不自动等于脱困：服务器返回
+        ``REQUEST_DECISION`` 才表示一次有效 Escape 并 Handback；返回
+        ``REQUEST_RECOVERY_DECISION`` 则继续 Recovery。失败的 Recovery BACKTRACK 也可在服务器
+        允许时继续规划，而不是直接结束整个 Episode。
+        """
 
         if self.backtrack is None:
             raise RuntimeError("No BACKTRACK action exists at completion.")
@@ -1751,8 +2019,26 @@ class LocalEndToEndEpisode:
             self._recovery_expected = False
         self._advance_decision("BACKTRACK completion")
 
+    # 窗口是高层执行证据，非每条 DDS 指令；默认约一秒一次，且受同步请求耗时影响。
+    # 首尾位移是直线距离，不是机器人走过的路径弧长，转圈或绕行时二者差别很大。
     def _report_motion_window_if_due(self) -> G3ExecutionControl | None:
-        """Record and report one phase-three translational execution window."""
+        """在到达约定时间点时，生成并上报一条阶段3平移 Motion Window。
+
+        只有 ``EXECUTING`` 或 ``BACKTRACK_EXECUTING`` 的真实轨迹跟随才记录窗口；
+        拍全景、原地转向、等模型、等 iPlanner 和站立都不会生成伪平移证据。
+
+        一条窗口的关键定义：
+
+        * ``timestamp_start/end``：窗口首尾里程计时间，不强假设恰好1.000秒；
+        * ``pose_start/end``：同一 ``pose_frame_id/frame_epoch`` 下的 ``[x,y,yaw]``；
+        * ``displacement_m``：首尾 ``(x,y)`` 直线距离，不是轨迹弧长；
+        * ``distance_to_local_goal_*``：follower 安全局部目标在窗口首尾的真实距离；
+        * ``new_explored_cells``：该窗口期间新增的唯一 5cm 观测格数。
+
+        服务器使用这些证据运行 Physical Monitor。若返回 ``PREEMPT``，调用者必须在
+        当前控制周期清零速度并进入原子抢占。为避免模型/规划阻塞后连续补发过时窗口，
+        下一截止时间始终从“当前 action elapsed”重新计算。
+        """
 
         active_action = self._active_action_name()
         if (
@@ -1899,7 +2185,11 @@ class LocalEndToEndEpisode:
         return control
 
     def _reset_motion_window_baseline(self) -> None:
-        """Start a fresh evidence window when true translation begins."""
+        """在真实平移刚开始或 BACKTRACK 切换分段时重置 Motion Window 基线。
+
+        同时冻结当前 explored计数、里程计位姿和局部目标距离，下一窗口结束时才能
+        得到正确的增量和首尾差值。
+        """
 
         self._map_window_explored_before = (
             None
@@ -1912,11 +2202,15 @@ class LocalEndToEndEpisode:
         )
 
     def _current_local_goal_distance_m(self) -> float | None:
+        """返回 follower 当前固定安全目标的二维欧氏距离；未执行时返回 None。"""
+
         if not self.follower.active:
             return None
         return float(np.linalg.norm(self.follower.current_goal_local_xy))
 
     def _active_action_name(self) -> str | None:
+        """返回当前执行上下文的协议 action 名称，BACKTRACK 优先于 pending。"""
+
         if self.backtrack is not None:
             return "BACKTRACK"
         if self.pending is not None:
@@ -1929,7 +2223,12 @@ class LocalEndToEndEpisode:
         force: bool = False,
         fallback_pose: Pose2D | None = None,
     ) -> None:
-        """Record measured NAVIGATE breadcrumbs without changing the wire protocol."""
+        """记录实测 NAVIGATE 世界坐标面包屑，但不改变对外 HTTP 协议。
+
+        相邻记录点至少间隔 ``backtrack_breadcrumb_spacing_m``，防止把50Hz里程计每帧都
+        写入路径。``force=True`` 用于强制尝试保存决策起点/动作终点，但仍会过滤数值上
+        完全重合的点。
+        """
 
         if self.pending is None:
             return
@@ -1948,6 +2247,8 @@ class LocalEndToEndEpisode:
 
     @staticmethod
     def _pose_dict(pose: Pose2D | None) -> dict | None:
+        """把位姿转成用于本地可读日志的字典；允许 None。"""
+
         if pose is None:
             return None
         return {
@@ -1959,12 +2260,16 @@ class LocalEndToEndEpisode:
 
     @staticmethod
     def _pose_array(pose: Pose2D) -> list[float]:
+        """把已校验位姿转成冻结 HTTP Schema 要求的 ``[x, y, yaw]`` 数组。"""
+
         checked = pose.validated()
         return [float(checked.x), float(checked.y), float(checked.yaw)]
 
     def _save_backtrack_event(
         self, status: str, *, failure_reason: str | None = None
     ) -> None:
+        """落盘 BACKTRACK 路线、ID映射、执行段数、最终位姿和失败原因。"""
+
         if self.backtrack is None:
             return
         pose = self.odometry.get_pose()
@@ -1988,7 +2293,21 @@ class LocalEndToEndEpisode:
         )
 
     def _report_action_complete(self, action: str) -> G3ExecutionControl | None:
-        """Report exactly once immediately before committing a high-level action."""
+        """在提交高层动作历史前，幂等且仅上报一次 ``action_complete``。
+
+        ``decision_pose`` 和 ``final_pose`` 计算的 ``displacement_m`` 是整个高层动作首尾
+        直线位移，和每秒 Motion Window 的位移不是同一累计口径。``event_id`` 由
+        ``session_id + decision_index + complete`` 确定，配合服务器幂等重试。
+
+        ``status`` 表示机器人端执行结果：
+
+        * ``COMPLETED/REACHED``：到达本地轨迹终点；
+        * ``FAILED/TIMEOUT|PLANNING_FAILED|EXECUTION_FAILED``：本地动作失败；
+        * ``PREEMPTED/PREEMPTED``：已完成服务器要求的原子抢占。
+
+        服务器响应的 ``control/next_action`` 才决定后续是普通决策、Recovery、Handback
+        还是 SAFE_STOP。
+        """
 
         if self.session_client is None or not self.remote_session_active:
             return None
@@ -2076,7 +2395,12 @@ class LocalEndToEndEpisode:
         print(f"[LOCAL-VLN ERROR] {reason}")
 
     def _desired_mode(self) -> str:
-        """根据当前状态判断外层控制器应切换到行走还是站立模式。"""
+        """根据当前状态判断外层控制器应切换到行走还是站立模式。
+
+        等待模型也保持 ``locomotion``，但 ``update`` 返回的命令是 ``[0,0,0]``。这样真机
+        可继续以零速度刷新高层行走控制，而不会因每次模型请求都频繁切换 stand。
+        只有预热、动作收尾和终态需要 ``stand``。
+        """
 
         if self.state in {
             EpisodeState.WAIT_PANORAMA_LOCOMOTION,
@@ -2126,7 +2450,12 @@ class LocalEndToEndEpisode:
         save_name: str,
         target_xy: np.ndarray,
     ) -> None:
-        """Save the same ground-plane trajectory overlay used by Uni-LaViRA."""
+        """将 iPlanner 地面轨迹投影回 RGB 图像，保存与 Uni-LaViRA 一致的诊断叠加图。
+
+        轨迹坐标约定为 ``x=前、y=左``；投影到相机时使用 ``camera_z=x``、
+        ``camera_x=-y`` 和 Uni G1 默认1m相机高度。绿线是轨迹，红点是轨迹终点，红色十字
+        是请求给 iPlanner 的原局部目标。该图仅用于实验分析，不反馈给模型或控制器。
+        """
 
         if self.output_dir is None or trajectory is None or len(trajectory) == 0:
             return

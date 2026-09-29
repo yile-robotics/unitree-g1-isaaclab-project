@@ -1,3 +1,8 @@
+# 中文导读：
+# 本文件维护本轮 RGB-D 探索证据：相机深度 + 安装几何 + SLAM/仿真位姿 → 稀疏世界栅格。
+# map-config 是标定和栅格参数，不是预先生成的地图文件；此处不读取 Unitree SLAM PCD。
+# 地图快照用于 G3 运动证据和调试，不直接替代 iPlanner 进行路径规划。
+
 from __future__ import annotations
 
 """Episode-local sparse RGB-D exploration map.
@@ -164,6 +169,7 @@ class SparseEpisodeExplorationMap:
     def explored_cells(self) -> int:
         return len(self.observed_cells)
 
+    # 米除以分辨率得到格坐标，再向下取整；负坐标合法，无须给整个世界分配固定大小数组。
     def world_xy_to_cell(self, world_x: float, world_y: float) -> GridCell:
         """Map a world point to an unbounded integer cell; negatives are valid."""
 
@@ -175,6 +181,8 @@ class SparseEpisodeExplorationMap:
             int(math.floor(float(world_y) / resolution)),
         )
 
+    # 从深度图按步长采样，通过内参反投影，再按安装几何和机器人位姿转换到世界栅格。
+    # observed_cells 用集合去重，因此重复看到同一个格不会被当作新增探索格。
     def integrate(self, frame: ViewFrame, robot_pose: Pose2D) -> MapIntegrationResult:
         """Fuse one physical forward RGB-D observation into the episode map."""
 

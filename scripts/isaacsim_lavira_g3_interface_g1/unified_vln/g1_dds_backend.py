@@ -1,3 +1,8 @@
+# 中文导读：
+# DDS 控制流：set_velocity 更新共享速度 → 后台线程重复 Move → G1 机载运动服务执行。
+# 这里订阅 sportmodestate 仅提取 IMU yaw，不是 SLAM 世界位姿。配置 SLAM 的真机入口用 SLAM yaw。
+# 线程目标频率不是硬实时保证；SDK 调用耗时和调度都会影响实际发送间隔。
+
 from __future__ import annotations
 
 """可选的真实 G1 机器人 DDS 后端。
@@ -52,6 +57,7 @@ class UnitreeG1DDSBackend:
         self.lock = threading.Lock()
         self.latest_yaw_rad: float | None = None
         self.latest_yaw_time = 0.0
+        # 初始化就保持零速度，后续相机和会话初始化期间线程也不会主动给出行走目标。
         self.target_command = (0.0, 0.0, 0.0)
         self.running = True
 
@@ -125,6 +131,8 @@ class UnitreeG1DDSBackend:
             with self.lock:
                 command = self.target_command
             try:
+                # Move 接收前向/横向/偏航速度，不是关节目标；SDK 内部再调用速度 RPC。
+                # 上层同步等待 iPlanner 或上报时，本线程仍重复上一条命令。
                 self.client.Move(*command)
             except Exception:
                 pass

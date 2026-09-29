@@ -1,3 +1,8 @@
+# 中文导读：
+# 本文件是数据格式适配层：ViewFrame RGB/米制深度 → Uni 原客户端 BGR/毫米深度。
+# 原客户端从相邻 uni-lavira-code 工程动态导入，因此本目录不是可独立拷走的全部依赖。
+# 返回局部路径和 fear；是否截短、如何跟踪、何时结束由 Episode 与 follower 决定。
+
 from __future__ import annotations
 
 """Thin data adapter around Uni-LaViRA G1's original iPlanner client."""
@@ -88,12 +93,14 @@ class IPlannerClient:
     def reset(self, intrinsic: Sequence[Sequence[float]]) -> bool:
         return bool(self._client.reset(intrinsic=intrinsic))
 
+    # 这里只做乘 1000 和 uint16 转换，没有清洗 NaN/Inf 或溢出值；不要把转换等同于深度验证。
     @staticmethod
     def depth_metres_to_uni_millimetres(depth_m: np.ndarray) -> np.ndarray:
         """Quantize floating metres to the uint16 millimetres Uni expects."""
 
         return (np.asarray(depth_m) * 1000.0).astype(np.uint16)
 
+    # 这是同步调用：RGB 转 BGR、深度转毫米后交给原客户端；规划阻塞会占用调用线程。
     def get_plan(
         self,
         front_frame: ViewFrame,

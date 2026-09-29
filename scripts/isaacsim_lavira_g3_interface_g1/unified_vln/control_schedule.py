@@ -1,3 +1,7 @@
+# 中文导读：
+# 把环境步进频率和导航更新频率分开：到期才计算新导航命令，其余步保持上次结果。
+# 返回的 dt 用于时间累计；控制周期、相机帧、模型决策次数属于三个不同的计数。
+
 from __future__ import annotations
 
 """Small timing helpers shared by the Isaac runner and unit tests."""

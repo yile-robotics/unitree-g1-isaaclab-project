@@ -1,4 +1,8 @@
 #!/usr/bin/env python3
+# 中文导读：
+# 仿真阅读主线：创建 Isaac 环境 → 装配与真机共用的 Episode → 按导航节奏更新 → 策略驱动环境。
+# 与真机的区别主要在相机、位姿和执行后端；G3 会话和高层状态机在 unified_vln 中复用。
+
 from __future__ import annotations
 
 """Run the new local-frame combined-model + iPlanner flow in Isaac Sim."""

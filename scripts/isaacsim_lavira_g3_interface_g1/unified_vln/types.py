@@ -1,3 +1,7 @@
+# 中文导读：
+# ViewFrame 是单帧 RGB-D 与内参；PanoramaBundle 是按协议顺序排列的四方向观测。
+# 单相机转圈模式下四张图时间不同，bundle 并不表示四个方向严格同时曝光。
+
 #定义了两个数据结构，用来统一保存并检查四方向相机数据
 from __future__ import annotations
 

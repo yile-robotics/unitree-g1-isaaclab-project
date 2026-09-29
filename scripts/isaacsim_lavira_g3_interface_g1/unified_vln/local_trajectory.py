@@ -1,3 +1,8 @@
+# 中文导读：
+# 本文件把局部路径转换为 [vx, vy, wz]，位置单位米，角度单位弧度，速度单位 m/s 和 rad/s。
+# Pure Pursuit 的 lookahead 是已有路径点到局部原点的距离门槛；Kp 分支则沿路径投影后插值。
+# 当前 SLAM + Pure Pursuit 在重规划之间只更新最终目标，不逐帧变换旧局部路径点。
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -24,6 +29,8 @@ def _validated_trajectory(trajectory: np.ndarray) -> np.ndarray:
     return path[:, :3].copy()
 
 
+# Kp 几何：先找机器人到折线最近的投影点，再沿折线弧长前移 lookahead_m。
+# 返回点可在线段中间，不必是 iPlanner 原始路径点；路径不足时取末端。
 def _path_projection_lookahead(
     path_xy: np.ndarray,
     robot_xy: np.ndarray,
@@ -257,6 +264,8 @@ class _LocalReferenceTracker:
             )
     # 有 odometry 时，Uni 只更新局部目标，不变换两次重规划之间的旧局部路径；
     # 无 odometry 时，使用上一条速度命令同时更新局部路径和目标。
+    # SLAM 分支只刷新 goal_local；path_local 保持到下一次 replace_path。
+    # 因此 Pure Pursuit 的旧路径点距离不等于机器人移动后重新测算的逐帧距离。
     def advance(self, dt: float, applied_command: np.ndarray) -> str | None:
         if self.uses_odometry:
             pose = self.odometry.get_pose()
@@ -285,6 +294,7 @@ class _LocalReferenceTracker:
         ) @ inverse_delta_rotation.T
         return None
     # 新规划已经以机器人当前位姿为局部原点，因此直接整体替换并由跟随器重置索引。
+    # 新路径以新规划时的机器人位置为局部原点；上层 follower 会把搜索索引归零。
     def replace_path(self, path: np.ndarray) -> None:
         self.path_local = _validated_trajectory(path)
         if self.uses_odometry:
@@ -373,6 +383,7 @@ class LocalTrajectoryFollower:
             time.time() - self.last_replan_time_s > self.config.replan_interval_s
         )
 
+    # 新路径以新规划时的机器人位置为局部原点；上层 follower 会把搜索索引归零。
     def replace_path(self, path: np.ndarray) -> None:
         if self._reference is None:
             raise RuntimeError("Cannot replace an inactive local path.")
@@ -386,6 +397,8 @@ class LocalTrajectoryFollower:
         if self.active:
             self.last_replan_time_s = float(started_at_s)
 
+    # 先检查终点距离及越过目标保护，再选本轮追踪点；到达终点时不再需要 target_local_xy。
+    # lookahead 是选点参数，goal_tolerance 是动作完成参数，二者不能混为一谈。
     def update(
         self,
         dt: float,
@@ -501,6 +514,7 @@ class LocalTrajectoryFollower:
             command_yaw = float(
                 np.clip(command_yaw, -yaw_limit, yaw_limit)
             )
+            # 偏置在限幅之后相加，因此最终 wz 可能超出前面追踪项的限幅值。
             command_yaw += self.config.yaw_bias_rad_s
 
             # Match the old follower's terminal slowdown. The G1 locomotion
@@ -529,19 +543,25 @@ class LocalTrajectoryFollower:
         else:
             path = self._reference.path_local
             found_target = False
+            # 按路径索引向后搜索，不是从所有点中找距离最接近 0.5m 的点。
             for index in range(self.current_idx, len(path)):
+                # sqrt(x*x+y*y) 是局部原点到该点的直线距离，忽略 z；严格大于才选中。
+                # 未计算圆与折线交点，所以实际追踪点可能在 0.57m，而非精确 0.50m。
                 if float(np.linalg.norm(path[index, :2])) > self.config.lookahead_m:
                     self.current_idx = index
                     found_target = True
                     break
+            # 剩余点都在前瞻半径内时追踪末点，是否到达已由前面的终点容差检查决定。
             if not found_target:
                 self.current_idx = len(path) - 1
+            # current_idx + 当前路径版本标识才能唯一定位追踪点：重规划后索引会重新从零开始。
             target = path[self.current_idx, :2]
             target_distance = max(float(np.linalg.norm(target)), 0.1)
             alpha = float(math.atan2(float(target[1]), float(target[0])))
             # Frozen Pure-Pursuit branch.  Keeping this byte-for-byte behavior
             # separate makes the controller selectable and preserves existing
             # runs when ``tracking_controller`` is not explicitly set to kp.
+            # 这是到最终局部目标的距离，不是到前瞻点的距离；进入范围后关闭追踪转向项。
             if distance_to_goal < self.config.blind_yaw_radius_m:
                 command_yaw = 0.0
                 steering_alpha = 0.0
@@ -580,6 +600,7 @@ class LocalTrajectoryFollower:
             reached=False,
             abort_reason=None,
             goal_local_xy=goal,
+            # 可用于逐控制周期调试实际追踪点；现有 Episode 未把这个字段逐帧保存到文件。
             target_local_xy=np.asarray(target, dtype=np.float64).copy(),
             distance_to_goal_m=distance_to_goal,
             alpha_rad=alpha,

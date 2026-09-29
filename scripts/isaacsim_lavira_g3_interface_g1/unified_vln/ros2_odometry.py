@@ -1,3 +1,8 @@
+# 中文导读：
+# 输入是 ROS 2 nav_msgs/msg/Odometry，而非 Unitree SDK 的 rt/slam_info 字符串 JSON。
+# 这里只读取外部 SLAM 输出，不启动 SLAM、不读取 PCD、不自动做雷达到基座的 TF 变换。
+# 输出 Pose2D 保留平面位置和 yaw；调用方必须确保输入代表所需的机器人基座。
+
 from __future__ import annotations
 
 """ROS 2 ``/Odometry`` 到统一 ``Pose2D`` 接口的适配器。
@@ -34,6 +39,7 @@ class Ros2OdometryProvider:
         pose_timeout_s: float = 0.5,
         node_name: str = "unified_vln_odometry",
         start_node: bool = True,
+        preserve_world_coordinates: bool = False,
     ):
         if not topic.strip() or not node_name.strip():
             raise ValueError("ROS 2 odometry topic/node name must not be empty.")
@@ -42,6 +48,7 @@ class Ros2OdometryProvider:
 
         self.topic = topic
         self.pose_timeout_s = float(pose_timeout_s)
+        self.preserve_world_coordinates = bool(preserve_world_coordinates)
         self.node_name = node_name
         self.lock = threading.Lock()
         self.latest_pose: Pose2D | None = None
@@ -123,6 +130,8 @@ class Ros2OdometryProvider:
                 self.last_spin_error = str(exc)
                 self.running = False
 
+    # 四元数先归一化再提取 yaw；输出只保留 x/y/yaw。
+    # 新鲜度使用本机接收时间，不是消息 header 的采样时间，不能据此证明传感器端无延迟。
     def ingest_odometry(self, message, *, received_time: float | None = None) -> None:
         """验证并保存一条 ROS 2 Odometry 消息。
 
@@ -164,7 +173,11 @@ class Ros2OdometryProvider:
                 )
                 self.latest_pose = None
                 return
-            if (abs(x) > 1000.0 or abs(y) > 1000.0) and self.odom_offset_xy is None:
+            if (
+                not self.preserve_world_coordinates
+                and (abs(x) > 1000.0 or abs(y) > 1000.0)
+                and self.odom_offset_xy is None
+            ):
                 self.odom_offset_xy = np.array([x, y], dtype=np.float64)
             if self.odom_offset_xy is not None:
                 x -= float(self.odom_offset_xy[0])
@@ -209,4 +222,3 @@ class Ros2OdometryProvider:
                 pass
         if self._owns_rclpy and self._rclpy is not None and self._rclpy.ok():
             self._rclpy.shutdown()
-

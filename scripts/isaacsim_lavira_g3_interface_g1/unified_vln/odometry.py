@@ -1,3 +1,7 @@
+# 中文导读：
+# 统一位姿协议和二维坐标变换。fixed 指保持不动的参考系，可是 SLAM map/odom 或仿真世界。
+# local 点以当前机器人为原点，x 向前、y 向左；局部转世界需先旋转再平移，逆变换顺序相反。
+
 from __future__ import annotations
 
 from dataclasses import dataclass

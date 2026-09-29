@@ -1,10 +1,10 @@
 # Isaac Sim LaViRA G3 接口适配（G1 + 本机 iPlanner）
 
-本文档是 `isaacsim_lavira_g3_interface_g1` 的当前唯一运行说明。旧版
+本文档是 `isaacsim_lavira_g3_interface_g1` 的 Isaac/LaViRA 运行说明。旧版
 `isaacsim_lavira_iplanner_g1`、2026-08-11/13 的临时命令和早期单阶段接口结论不再作为本目录的
 运行依据。
 
-最后更新：2026-08-28。
+最后更新：2026-09-29。
 
 ## 1. 目标与职责边界
 
@@ -65,29 +65,29 @@ Map、连续 iPlanner 约 1 秒汇总为 Motion Window、本地诊断日志、�
 | 阶段3 Motion Window | 完成 | 仅 `EXECUTING` 平移期间约1秒一次，真实 Isaac 连续窗口已被远端接受 |
 | 稀疏 Map Progress | 完成（Isaac） | 四字段对象已接入远端；地图无固定边界，分辨率 5 cm |
 | 阶段3严格执行上报 | 完成 | 成功、重复、乱序、三种失败结果和真实 Isaac 请求均已通过 |
-| 阶段4 Stage Progress | 完成 | 真实Isaac持续返回有效`1/2`及`2/2 COMPLETED`；服务器`phase4_stage_progress_v2`已将失败语义字段归一化为空 |
-| 阶段4 STOP Pipeline | 历史闭环完成；待回归 | 真实Isaac曾闭环`STOP_PENDING → STOP_CONFIRMED → end_session(SUCCESS)`；Stage Progress阻塞已修复，需用新Session重跑照片STOP |
+| 阶段4 Stage Progress | 完成，模型稳定性继续观察 | 真实Isaac持续返回有效进度；服务器`phase4_stage_progress_v2`已将失败语义字段归一化为空；最新成功任务出现`1/3 → 2/3 → 1/3 → 2/3`非单调波动，但没有破坏最终STOP闭环 |
+| 阶段4 STOP Pipeline | 真实闭环完成 | `door_white_sign_20260902_114038_17391`真实走通普通Navigator STOP、Strong STOP Gate `ALLOW`、`STOP_CONFIRMED`及`end_session(SUCCESS)` |
 | STOP独立强模型 | 完成 | `/health`和真实响应均为`model_backend=strong_api`；真实`ALLOW`含有效role call与4张图 |
 | 决策等待控制 | 客户端完成 | 单相机实际路径的`/decision`在后台线程执行；Isaac/G1控制循环继续运行并保持locomotion零速度 |
-| 阶段5 PREEMPT | PREMATURE真实闭环完成 | 真实Isaac已走通`PREMATURE_STOP → Strong Failure Verifier → PREEMPT → PREEMPTED ack`；在线Physical/Semantic候选直接PREEMPT仍待实测 |
-| 阶段6 Recovery | 失败安全闭环完成 | 真实Isaac已通过Recovery NAVIGATE、Strong Escape拒绝假成功、多次重试、预算耗尽SAFE_STOP及`end_session(FAILURE)`；BACKTRACK实走和成功Handback待验证 |
-| 阶段7 Semantic | 基础真实调用完成 | Strong Semantic Audit在真实Isaac中能返回正常结果并识别`SEMANTIC_WANDERING/HIGH`；`sustained=true → PREEMPT`尚未触发 |
+| 阶段5 PREEMPT | Physical与PREMATURE真实闭环完成，Semantic受控通过 | Physical候选与PREMATURE_STOP均已真实走通Verifier、PREEMPT、PREEMPTED确认；8766 Semantic受控候选也已完成该握手 |
+| 阶段6 Recovery | 成功和失败闭环均已验证 | 2026-09-08正式8765已走通Recovery NAVIGATE → Escape成功 → Handback → 普通Navigator → STOP_CONFIRMED → SUCCESS；历史失败重试/SAFE_STOP已通过；服务器BACKTRACK实走闭环仍待验证 |
+| 阶段7 Semantic | 真实调用及受控抢占完成 | 正式8765能返回合法正常/异常审计；8766已验证持续异常 → Verifier → PREEMPT → PREEMPTED确认；正式8765自然持续异常抢占仍待验证 |
 
 ### 2.2 尚未完成，不能提前宣称成功
 
 | 部分 | 尚缺内容 |
 |---|---|
-| 阶段5～7真实Isaac | PREMATURE候选、Strong Failure Verifier、PREEMPT、Recovery NAVIGATE、Strong Escape失败、重试和SAFE_STOP已通过；Physical/Semantic在线PREEMPT与成功Handback仍待验证 |
+| 阶段5～7剩余验收 | 正式8765自然Semantic持续异常抢占、服务器Recovery BACKTRACK实走闭环仍待验证；成功Handback并继续到STOP已完成，见2.15 |
 | Recovery BACKTRACK实走 | 稳定Registry ID与stored-reverse映射已受控验证；仍需Isaac实际走完多段路径 |
 | SAFE_STOP真实链路 | 已在真实Isaac中走通`Recovery预算耗尽 → control=SAFE_STOP → 零速度站立 → end_session(FAILURE/recovery_safe_stop)` |
 | 真机 G1 | DDS、D435、SLAM 位姿和在线 Map Progress 尚未端到端联调 |
 | Map traversable | Isaac 阶段按当前 RGB-D 稀疏地图结果作为可靠输入；真机迁移时重新校准和验证 |
 
 当前阶段的准确表述是：**阶段1至阶段4已完成主要真实Isaac链路；阶段5至阶段7服务器已部署，
-真实Isaac已走通PREMATURE_STOP → Strong Failure Verifier → PREEMPT → Recovery NAVIGATE →
-Strong Escape拒绝假成功 → 重试 → SAFE_STOP → Session安全失败结束。当前112项客户端自动化
-测试通过。尚待真实验证的是修复后的Physical candidate完整PREEMPT、Recovery BACKTRACK、
-Escape成功Handback、真实Isaac `STOP_CONFIRMED → SUCCESS`最终闭环以及真机G1。**
+真实Isaac已走通PREMATURE_STOP和Physical NAVIGATION_NO_PROGRESS → Strong Failure Verifier → PREEMPT → Recovery NAVIGATE →
+Strong Escape拒绝假成功 → 重试 → SAFE_STOP → Session安全失败结束，也已独立走通普通任务的
+Strong STOP Gate `ALLOW` → `STOP_CONFIRMED` → `end_session(SUCCESS)`正常成功闭环。当前112项
+客户端自动化测试为此前记录，本次未重新运行。2026-09-08新增正式8765成功Recovery/Handback/最终STOP闭环，以及8766受控Semantic持续异常PREEMPT握手。尚待验证的是服务器Recovery BACKTRACK实走闭环、正式8765自然Semantic持续异常PREEMPT以及真机G1。**
 
 ### 2.3 阶段3最终验收记录（2026-08-26）
 
@@ -548,6 +548,441 @@ instruction: Leave the exhibition room through the open doorway. After entering 
 output: outputs/isaacsim_lavira_g3_interface_g1/door_sofa_g3
 ```
 
+### 2.10 PREMATURE_STOP P0与Recovery真实Isaac回归（2026-09-01）
+
+真实 Isaac Session：
+
+```text
+session_id: door_sofa_g3_20260901_165753_23294
+stage_plan_id: sha256:5793b832a249f0a0ba1be991d51c9b35d3925d399374b8d6f510f34f3b2fb703
+```
+
+本地证据目录：
+
+```text
+outputs/isaacsim_lavira_g3_interface_g1/door_sofa_g3/
+  door_sofa_g3_20260901_165753_23294/
+  run_20260901_165809_356584/
+```
+
+本轮先出现了一次长时卡住。`decision 9`连续上报60条Motion Window，后段单窗口位移约
+`0.001...0.008 m`、局部目标距离稳定在约`1.07 m`、`new_explored_cells=0`。由于该decision前段
+已移动，整个动作的累计motion超过`0.20 m`，且没有满足重复edge条件，所有在线Physical Monitor
+窗口仍为`MONITORING/candidate=null/CONTINUE`。这证明当前Physical Monitor对“先移动一段、后长时卡住”
+存在延迟监测盲区，本轮最终依靠`local_action_timeout_s=60`收尾。
+
+TIMEOUT完成上报后的服务器链路：
+
+```text
+decision 9 action_complete=FAILED/TIMEOUT
+→ Failure Monitor生成TIMEOUT candidate
+→ Strong Failure Verifier：parse_success=true、verdict=NORMAL、need_recovery=false
+→ CANDIDATE_NOT_CONFIRMED
+→ control=CONTINUE / next_action=REQUEST_DECISION
+```
+
+这一步验证了TIMEOUT候选、强模型Verifier真实调用和候选否决回退。本次强模型认为机器人已经
+穿过门且当前证据不足，因此未进入Recovery；这是模型否决，不是接口未调用。
+
+随后`decision 10`真实走通了新部署的P0链路：
+
+```text
+Navigator: STOP/left/sofa
+→ Stage Progress: 1/2，final_target_visible=false
+→ Strong STOP Gate: PREMATURE
+→ premature_stop candidate
+→ Candidate Arbiter: accepted=true
+→ Strong Failure Verifier: FAILURE、need_recovery=true
+→ control=PREEMPT / next_action=ACTION_COMPLETE_PREEMPTED
+→ 客户端保持零速度、稳定站立
+→ action_complete=PREEMPTED
+→ PREEMPT_ACKNOWLEDGED / Recovery Planning
+```
+
+`decision 11`真实进入强模型Recovery：
+
+```text
+Strong Recovery Planner
+→ action_source=RECOVERY
+→ NAVIGATE/behind/open doorway
+→ bbox所选视图深度无效，使用Uni-LaViRA fallback [1.5, 0.0]m
+→ iPlanner执行
+→ action_complete=COMPLETED/REACHED
+→ Strong Escape Evaluator
+→ recovery_escape_not_proven / semantic_alignment=NOT_ALIGNED
+→ next_action=REQUEST_RECOVERY_DECISION
+```
+
+Escape Evaluator没有把“到达短局部轨迹终点”误当成脱困成功。它记录了`real_displacement=true`，但
+`new_region=false`、`map_progress=false`、`stage_advanced=false`、`target_aligned=false`，因此正确要求
+继续Recovery。
+
+关键证据文件：
+
+```text
+g3_decision_009_action_complete.json   # TIMEOUT candidate与Verifier否决
+decision_010_response.json             # PREMATURE_STOP、Arbiter、Verifier和PREEMPT
+g3_decision_010_action_complete.json   # PREEMPTED ack与原子抢占记录
+decision_011_response.json             # Strong Recovery NAVIGATE
+g3_decision_011_action_complete.json   # Strong Escape拒绝假成功
+```
+
+因此本轮已把服务器P0从受控测试提升为真实Isaac闭环证据。它没有验证Physical Monitor在线提前
+PREEMPT；这次的PREEMPT来源是`premature_stop`。
+
+### 2.11 穿门、右转白色牌子与STOP成功闭环（2026-09-02）
+
+真实Session和证据目录：
+
+```text
+session_id: door_white_sign_20260902_114038_17391
+stage_plan_id: sha256:9667f6e419df13078b479b54e39a5aff31a3779cdb2547244f13fe2ab3d3685c
+
+outputs/isaacsim_lavira_g3_interface_g1/door_white_sign_tol1m/
+  door_white_sign_20260902_114038_17391/
+  run_20260902_114054_064718/
+```
+
+输入任务：
+
+```text
+Go straight through the open doorway. Then turn right and stop in front of the white sign.
+```
+
+虽然任务写成两句话，Stage Planner将其拆成了3个原子阶段并冻结：
+
+```text
+0. Go straight through the open doorway.
+1. Turn right.
+2. Stop in front of the white sign.
+```
+
+本轮真实成功链路：
+
+```text
+start_session / Frozen Stage Plan READY
+→ decision 0：Navigator NAVIGATE/forward/open doorway
+→ bbox深度3.505m，iPlanner safe goal 2.811m
+→ 机器人平移1.819m并连续上报Motion Window/Map Progress
+→ action_complete=COMPLETED/REACHED
+→ decision 1：Navigator再次NAVIGATE/forward/open doorway
+→ fear≈0.999993将safe goal截到0.874m，小于1.0m tolerance，近乎原地完成
+→ decision 2：Navigator NAVIGATE/right/white sign
+→ 白色牌子深度0.743m，机器人实际右转约90°；目标已在1.0m tolerance内，不再向前逼近
+→ decision 3：Navigator STOP/forward/white sign
+→ Strong STOP Gate：ALLOW、completed=true、parse_success=true
+→ control=STOP_CONFIRMED / next_action=END_SESSION_SUCCESS
+→ 客户端保持零速度、稳定stand并调用end_session(SUCCESS)
+→ Session ENDED / final_status=SUCCESS / reason=stop_confirmed
+```
+
+各动作首尾位移：
+
+| decision | 动作 | 结果 | 平移位移 |
+|---:|---|---|---:|
+| 0 | `NAVIGATE/forward/open doorway` | `COMPLETED/REACHED` | `1.819m` |
+| 1 | `NAVIGATE/forward/open doorway` | `COMPLETED/REACHED` | `0.0016m` |
+| 2 | `NAVIGATE/right/white sign` | `COMPLETED/REACHED` | `0.0173m`，主要执行约90°旋转 |
+| 3 | `STOP/forward/white sign` | `STOP_CONFIRMED` | 不执行普通导航动作 |
+
+decision 3的STOP Gate真实使用`strong_api`，证据包括已经穿门、已经右转、白色牌子清晰出现在
+当前FORWARD画面以及当前阶段为最终停止阶段。客户端没有为STOP发送普通`action_complete`，而是按
+协议直接安全站立并结束成功Session。因此本轮是当前最清晰的正常成功主链路证据，不是fallback或
+确定性mock。
+
+本轮还真实运行了一次Strong Semantic Audit：
+
+```text
+status=AUDIT_RECORDED
+candidate=false
+confidence=HIGH
+model_backend=strong_api
+```
+
+它没有误生成语义失败候选，说明正常导航期间Semantic Audit可以旁路运行而不破坏主链路。但本轮
+没有形成连续异常，不能作为Semantic candidate → PREEMPT的验收证据。
+
+Stage Progress本轮全部解析成功，但出现：
+
+```text
+decision 0: completed=1/3, current=Turn right
+decision 1: completed=2/3, current=Stop in front of the white sign
+decision 2: completed=1/3, current=Turn right
+decision 3: completed=2/3, current=Stop in front of the white sign
+```
+
+即`1/3 → 2/3 → 1/3 → 2/3`。decision 1在机器人真正右转前已经把`Turn right`判断为完成，原因是
+Stage Progress只使用任务、历史和四方向RGB，可能把“右侧视图已经看到牌子”误解为“已经右转”。
+Stage Progress不直接控制运动，因此Navigator随后仍正确输出`right/white sign`，Strong STOP Gate也用
+当前图像独立复核后才批准停止。本轮最终结果未受影响，但该非单调模型输出必须保留原始日志，不在
+客户端自行做`max(previous,current)`修正。
+
+本轮Physical Monitor始终为`MONITORING/candidate=null/CONTINUE`。decision 0有明显位移和地图增长，
+decision 1/2因没有实际平移而没有形成足够的连续平移Motion Window，所以不应触发卡住候选。本轮没有
+进入Failure Verifier、PREEMPT、Recovery、BACKTRACK、Escape Evaluator、Handback或SAFE_STOP。
+
+本轮新增确认：
+
+1. 正常任务的`STOP_CONFIRMED → end_session(SUCCESS)`真实Isaac闭环已经完成；
+2. 穿门后选择右侧目标、原地右转和单前向相机重新观测能够衔接；
+3. Strong STOP Gate的`ALLOW`成功分支已经真实验证；
+4. Semantic Audit在正常任务中可以真实运行且不误触发；
+5. `goal_tolerance_m=1.0`对0.743m近目标的停止合理，但也会把高fear截短到0.874m的轨迹近乎原地判定完成；
+6. Stage Progress模型存在非单调波动，但本轮没有改变正确Navigator动作或最终STOP结果。
+
+### 2.12 Physical Monitor低运动受控触发（2026-09-04）
+
+本轮使用专门的低速受控参数验证在线 Physical Monitor，不代表正常导航速度配置：
+
+```text
+session_id: physical_monitor_forced_20260904_134950_17878
+g3_motion_window_s: 0.25
+local_walk_speed_m_s: 0.001
+local_max_forward_speed_m_s: 0.001
+local_goal_tolerance_m: 0.10
+```
+
+证据目录：
+
+```text
+outputs/isaacsim_lavira_g3_interface_g1/physical_monitor_forced/
+  physical_monitor_forced_20260904_134950_17878/
+  run_20260904_135006_572449/
+```
+
+decision 0执行目标为`right/rainbow-colored painting`。前9个`motion_window`累计：
+
+```text
+navigation_windows: 9
+low_displacement_streak: 9
+motion_m: 0.065365m (< 0.20m)
+map_gain_cells: 138
+pattern: low_motion_and_no_map_gain_single_action
+```
+
+第9个窗口真实返回：
+
+```text
+control=PREEMPT
+reason=failure_verifier_confirmed
+next_action=ACTION_COMPLETE_PREEMPTED
+phase5.status=PREEMPT_REQUESTED
+failure_verification.verdict=FAILURE
+failure_verification.need_recovery=true
+model_backend=strong_api
+```
+
+随后客户端完成原子停车并发送`action_complete=PREEMPTED`，服务器返回
+`preemption_acknowledged`和`REQUEST_RECOVERY_DECISION`；下一次决策进入
+`action_source=RECOVERY`、`model_backend=strong_api`的 Recovery Planner。至此真实验证了：
+
+```text
+Physical Monitor
+→ NAVIGATION_NO_PROGRESS candidate
+→ Strong Failure Verifier
+→ PREEMPT
+→ 客户端PREEMPTED确认
+→ Recovery Planner
+```
+
+本轮不是物理接触传感器碰撞检测；证据中`collision_signal_available=false`。Recovery已经进入执行，
+但本轮没有证明 Escape 成功、Navigator Handback 或最终成功结束 Session。
+
+关键证据文件：
+
+```text
+g3_decision_000_motion_0008.json       # PREEMPT、candidate和Strong Verifier
+g3_decision_000_action_complete.json   # PREEMPTED确认和Recovery请求
+decision_001_response.json              # Strong Recovery NAVIGATE
+```
+
+可复用测试命令（终端1保持SSH隧道，终端2保持本地iPlanner）：
+
+```bash
+conda activate isaacsim
+export VK_ICD_FILENAMES=/etc/vulkan/icd.d/nvidia_icd.json
+cd /home/yile/projects/unitree-g1-isaaclab-project
+
+SESSION_ID="door_white_sign_repeat_$(date +%Y%m%d_%H%M%S)_${RANDOM}"
+echo "Using new Session ID: $SESSION_ID"
+
+python scripts/isaacsim_lavira_g3_interface_g1/run_isaacsim.py \
+  --max_steps -1 \
+  --scene_usd /home/yile/scene/House/scene_200/mujoco/usd/scene_scene_200.usda \
+  --spawn 4.6 3.5 0.8 \
+  --yaw -0.72 \
+  --device cuda:0 \
+  --real-time \
+  --no-four_rgbd_set_viewport \
+  --instruction "Go straight through the open doorway. Then turn right and stop in front of the white sign." \
+  --lavira_session_id "$SESSION_ID" \
+  --lavira_server_url "http://127.0.0.1:18765/v1/lavira/decision" \
+  --lavira_timeout 120 \
+  --g3_session_timeout_s 180 \
+  --g3_motion_window_s 1.0 \
+  --iplanner_url "http://127.0.0.1:8888" \
+  --iplanner_timeout_s 5 \
+  --local_use_isaac_odometry \
+  --local_map_progress \
+  --local_map_resolution_m 0.05 \
+  --local_map_depth_stride 8 \
+  --local_map_robot_radius_m 0.35 \
+  --local_tracking_controller pure_pursuit \
+  --local_goal_tolerance_m 1.0 \
+  --local_blind_yaw_radius_m 1.5 \
+  --local_max_decisions 0 \
+  --local_action_timeout_s 60 \
+  --local_output_dir outputs/isaacsim_lavira_g3_interface_g1/door_white_sign_repeat_tol1m
+```
+
+### 2.12 对角初始点反向朝向与STOP成功闭环（2026-09-04）
+
+真实Isaac Session：
+
+```text
+session_id: opposite_corner_flipped_20260904_102644_26798
+stage_plan_id: sha256:96a31aa1318395d45b4fdb7d71a64c6692d1a3a13a51186a378285f70927da0c
+```
+
+本地证据目录：
+
+```text
+outputs/isaacsim_lavira_g3_interface_g1/opposite_corner_flipped_tol1m/
+  opposite_corner_flipped_20260904_102644_26798/
+  run_20260904_102701_534431/
+```
+
+本轮保持初始位置约`(4.30, 1.10)`不变，将初始朝向从约`0`反转180度为
+`--yaw 3.14159`。decision 0立即得到`NAVIGATE/forward/white abstract painting`，说明新朝向能够让
+机器人从该位置正对第一目标。
+
+Frozen Stage Plan为：
+
+```text
+0. Go straight toward the white abstract painting.
+1. Turn right to face the rainbow-colored painting and stop.
+```
+
+本轮真实控制链路：
+
+```text
+decision 0: NAVIGATE/forward/white abstract painting
+→ Pure Pursuit执行并移动0.728m
+→ action_complete=COMPLETED/REACHED
+→ decision 1: NAVIGATE/forward/white abstract painting
+→ 6个约1秒Motion Window
+→ Pure Pursuit执行并移动1.662m
+→ action_complete=COMPLETED/REACHED
+→ decision 2: STOP/right/rainbow-colored painting
+→ Strong STOP Gate: ALLOW
+→ control=STOP_CONFIRMED
+→ 本地零速度和安全站立切换
+→ end_session(SUCCESS, stop_confirmed)
+```
+
+decision 0的Stage Progress曾解析失败：
+
+```text
+parse_error=evidence_of_completion must contain one item per completed stage
+```
+
+服务器按`phase4_stage_progress_v2`将失败结果归一化为空stage字段，客户端正确旁路该失败并继续
+Navigator。decision 1和2均恢复为有效`stage_completed=1/2`，当前阶段仍是
+`Turn right to face the rainbow-colored painting and stop.`。
+
+decision 1的Strong Semantic Auditor成功运行，返回`candidate=false、parse_success=true、
+sustained=false`，认为当前状态与下一子目标不存在矛盾。本轮没有形成Semantic候选，也没有进入
+Semantic PREEMPT。
+
+Physical Monitor本轮持续接收真实Motion Window。decision 1各窗口地图增量依次约为
+`109、30、22、7、0、0`，动作总首尾位移为`1.662m`，不满足持续低位移且低地图增益的卡住条件，
+因此所有窗口均为`MONITORING/candidate=null/CONTINUE`，未触发Physical Recovery是合理结果。
+
+本轮新增确认：
+
+1. 对角初始点使用`--yaw 3.14159`后，第一帧Navigator能够将白色抽象画识别为`forward`目标；
+2. Pure Pursuit连续两段真实执行、Motion Window、Map Progress和`action_complete`均正常；
+3. Stage Progress单次解析失败不会中断Navigator主链；
+4. Semantic Auditor正常旁路运行且未误报警；
+5. Strong STOP Gate的`ALLOW → STOP_CONFIRMED → end_session(SUCCESS)`再次真实通过；
+6. 本轮没有摔倒、Recovery、字段解析异常或Session残留。
+
+但本轮只能记为“服务器协议判定成功”，不能直接证明第二个动作在物理上完整执行。decision 2返回
+`STOP/right/rainbow-colored painting`时，Stage Progress仍为`1/2`，而STOP Gate声称机器人已经右转并
+面对彩虹画。`direction=right`描述的是目标位于右侧视图，不会让客户端在STOP后再执行右转；同时
+decision 1记录的yaw仅约从`3.098`变为`2.813rad`（约16度）。因此存在Strong STOP Gate把“右侧视图
+看见目标”误判为“已完成右转面对目标”的语义早停风险。该问题不属于客户端JSON、状态机或Pure
+Pursuit错误，后续分析任务成功率时必须把“协议成功”和“物理语义成功”分开统计。
+
+### 2.15 2026-09-08新增验收：Semantic受控抢占与正式Recovery成功闭环
+
+**8766受控Semantic，真实Isaac执行端验收：**
+
+```text
+session_id: semantic_paintings_20260908_102535_30110
+outputs/isaacsim_lavira_g3_interface_g1/semantic_paintings_8766/
+  semantic_paintings_20260908_102535_30110/run_20260908_102553_894096/
+```
+
+原始JSON确认：d1 `moved=false/sustained=false/window=0`；d3
+`moved=true/sustained=false/window=1`；d5 `candidate=true/parse_success=true/
+moved=true/sustained=true/window=2`。Verifier返回`FAILURE/need_recovery=true`，响应为
+`control=PREEMPT/next_action=ACTION_COMPLETE_PREEMPTED`。客户端停车并上报PREEMPTED，服务器
+确认`preemption_acknowledged/REQUEST_RECOVERY_DECISION`。随后达到6次决策上限，以
+`SUCCESS/episode_stopped`结束；这是测试正常停止，不是导航任务完成，也没有执行后续Recovery。
+
+证据：`decision_001_response.json`、`decision_003_response.json`、`decision_005_response.json`、
+`g3_decision_005_action_complete.json`。此结论仅覆盖8766受控输出下的控制链；不能凭
+`model_backend=strong_api`字段认定受控启动器调用了真实强模型。该Session的Frozen Stage Plan
+返回穿门/沙发，与本地看画instruction不一致，受控启动器是否固定模型输出需服务器核对；
+不能据此断言客户端用了旧Session。
+
+**正式8765，无中央长椅场景：成功Recovery后完成任务。**
+
+```text
+session_id: paintings_no_bench_20260908_112530_3547
+outputs/isaacsim_lavira_g3_interface_g1/paintings_no_bench_formal8765/
+  paintings_no_bench_20260908_112530_3547/run_20260908_112546_030504/
+
+d3 Navigator STOP → PREMATURE_STOP → Verifier → PREEMPT → PREEMPTED确认
+→ d4 Recovery NAVIGATE/right/rainbow-colored painting
+→ action_complete=COMPLETED → Escape通过 → NAVIGATOR_HANDBACK
+→ d5 source=NAVIGATOR，Stage Progress=2/3，继续选择彩虹画
+→ d6 Stage Progress=3/3 → STOP Gate ALLOW → STOP_CONFIRMED
+→ end_session(SUCCESS, stop_confirmed)，failure=None
+```
+
+本轮首次在本节集中保存“正式Recovery成功、交还Navigator、继续任务并最终STOP”的完整证据。
+Recovery尝试首尾位移约`0.644m`。d1、d5 Semantic均为`candidate=false/parse_success=true`，
+因此本轮恢复来源是`premature_stop`，没有补齐正式Semantic持续异常触发。
+关键文件：`decision_003_response.json`、`g3_decision_003_action_complete.json`、
+`decision_004_response.json`、`g3_decision_004_action_complete.json`、
+`decision_005_response.json`、`decision_006_response.json`、`g3_session_ended.json`。
+
+复现时使用第5节正常启动步骤，确保18765隧道与本地8888服务已运行，每次生成新Session ID；
+本轮实际参数如下（本次显式0.5m覆盖，不改变历史1.0m默认说明）：
+
+```text
+scene_usd: scripts/isaacsim_lavira_g3_interface_g1/scenes/scene_scene_200_without_exhibition_bench.usda
+spawn: 4.6 3.5 0.8
+yaw: 2.42
+instruction: Move toward the dark landscape photograph. Then turn right and stop near the rainbow-colored painting.
+lavira_server_url: http://127.0.0.1:18765/v1/lavira/decision
+iplanner_url: http://127.0.0.1:8888
+local_tracking_controller: pure_pursuit
+local_goal_tolerance_m: 0.5
+local_blind_yaw_radius_m: 1.5
+local_walk_speed_m_s: 0.20
+local_max_forward_speed_m_s: 0.25
+g3_motion_window_s: 1.0
+local_action_timeout_s: 60
+local_max_decisions: 0
+```
+
+限制：去掉长椅后本轮跑通，但两轮模型决策和轨迹不同，不能据此单独归因于规划器或跟随器。
+Escape模型文字仍提及上一目标dark landscape photograph，与Recovery目标彩虹画不完全一致；
+控制闭环成功不等于模型解释全部准确。服务器BACKTRACK及真机验收仍未完成。
+
 ## 3. 当前服务器与 SSH 接口
 
 ### 3.1 地址关系
@@ -685,6 +1120,34 @@ curl -sS -i --max-time 30 \
 
 删除本地输出目录不会清除服务器 Session。
 
+### 4.3 Instruction 编写规范
+
+为减少 Stage Planner 拆分歧义和 Stage Progress 跳步，Isaac/真机正式测试的 instruction 应使用
+简短、可视、带明确方向的分段指令：
+
+1. 优先只写两个连续阶段，每句表达一个动作。
+2. 第一句写初始朝向上的动作和明确地标，例如 `Go straight toward ...`。
+3. 第二句明确写 `turn left` 或 `turn right`，并且只指定一个终点地标。
+4. 最后必须写明 `stop near ...` 或 `stop in front of ...`，不用含糊的“找到合适位置”。
+5. 地标必须是当前场景中可从 RGB 图像辨认的单一物体，如门、沙发、白色牌子或具体的画。
+6. 避免在一句中同时加入多个方向、备选目标、长篇背景或与主任务无关的限制。
+7. instruction 必须与 `--spawn` 和 `--yaw` 对应；“straight”是机器人的初始正前方，
+   不是场景的固定世界方向。
+
+推荐句式：
+
+```text
+Go straight toward <first landmark>. Then turn <left/right> and stop in front of <final landmark>.
+```
+
+本场景已核对的示例：
+
+```text
+Go straight toward the dark landscape photograph. Then turn right and stop in front of the rainbow-colored painting.
+```
+
+上述示例与第 5.5 节的新出生点配套使用，不要只替换 instruction 而保留不匹配的初始朝向。
+
 ## 5. 标准运行顺序
 
 ### 5.1 终端 1：SSH 隧道
@@ -767,6 +1230,50 @@ Map Progress 只是记录证据，不是碰撞规避器。
 ```
 
 相机、深度、iPlanner、模型调用和 Map Progress 仍会运行，但不会显示 Isaac 窗口。
+
+### 5.5 新初始点的双地标测试
+
+该测试不再使用常用的 `--spawn 4.6 3.5 0.8 --yaw -0.72`。新位姿
+`--spawn 3.55 3.50 0.8 --yaw 3.11` 来自既有真实 Isaac 轨迹中已经安全到达的位点，
+而不是未验证的任意场景坐标。在该初始朝向上，先向前靠近深色风景照片，再向右转向
+彩虹画并停下。
+
+```bash
+conda activate isaacsim
+export VK_ICD_FILENAMES=/etc/vulkan/icd.d/nvidia_icd.json
+cd /home/yile/projects/unitree-g1-isaaclab-project
+
+SESSION_ID="new_spawn_two_landmarks_$(date +%Y%m%d_%H%M%S)_${RANDOM}"
+echo "Using new Session ID: $SESSION_ID"
+
+python scripts/isaacsim_lavira_g3_interface_g1/run_isaacsim.py \
+  --max_steps -1 \
+  --scene_usd /home/yile/scene/House/scene_200/mujoco/usd/scene_scene_200.usda \
+  --spawn 3.55 3.50 0.8 \
+  --yaw 3.11 \
+  --device cuda:0 \
+  --real-time \
+  --no-four_rgbd_set_viewport \
+  --instruction "Go straight toward the dark landscape photograph. Then turn right and stop in front of the rainbow-colored painting." \
+  --lavira_session_id "$SESSION_ID" \
+  --lavira_server_url "http://127.0.0.1:18765/v1/lavira/decision" \
+  --lavira_timeout 120 \
+  --g3_session_timeout_s 180 \
+  --g3_motion_window_s 1.0 \
+  --iplanner_url "http://127.0.0.1:8888" \
+  --iplanner_timeout_s 5 \
+  --local_use_isaac_odometry \
+  --local_map_progress \
+  --local_map_resolution_m 0.05 \
+  --local_map_depth_stride 8 \
+  --local_map_robot_radius_m 0.35 \
+  --local_tracking_controller pure_pursuit \
+  --local_goal_tolerance_m 1.0 \
+  --local_blind_yaw_radius_m 1.5 \
+  --local_max_decisions 0 \
+  --local_action_timeout_s 60 \
+  --local_output_dir outputs/isaacsim_lavira_g3_interface_g1/new_spawn_two_landmarks_tol1m
+```
 
 ## 6. 当前接口流程
 
@@ -1272,14 +1779,16 @@ images/iplanner/
    用户选择保留的已知取舍，不得在分析Recovery成败时忽略。odometry越过目标保护只在曾接近到
    `tolerance+0.2m`后、当前距离比历史最小值增加至少
    `0.2m`并持续`0.3s`时触发，随后按`COMPLETED/REACHED`结束当前局部动作并请求下一次Navigator。
-7. Physical Monitor已在真实Isaac中生成过`REPEATED_FAILED_EDGE`候选（`navigation_windows=10`、
-   `low_displacement_streak=8`、`map_gain_cells=1`）。当时因终态`stage_id=stage_total`使
-   `expected_subgoal=None`而被服务器拒绝；该服务器问题已修复并部署，但修复后的
-   `Physical candidate → Strong Verifier → PREEMPT`尚需再次真实触发。
+7. Physical Monitor已在真实Isaac中真实触发`NAVIGATION_NO_PROGRESS`（9个窗口、
+   `low_displacement_streak=9`、累计`motion_m=0.065365m`），并完成
+   `Physical candidate → Strong Failure Verifier → PREEMPT → PREEMPTED ack → Recovery`。
+   该受控测试使用极低速度，仅证明在线监督链路，不代表正常导航速度下的触发概率。
 8. Recovery SAFE_STOP已经由服务器受控确认并落盘；客户端只在
    `control=SAFE_STOP/action_source=RECOVERY`时绕过旧Navigator解析，普通STOP仍保持严格校验。
 9. Stage Progress失败字段已经由`phase4_stage_progress_v2`归一化，失败结果不会进入STOP Gate有效窗口；
-   仍需用真实模型回归一次照片STOP，确认部署后的运行路径与受控测试一致。
+   `door_white_sign_20260902_114038_17391`已真实验证Strong STOP Gate `ALLOW`和成功结束。但有效的
+   Stage Progress仍可能出现`1/3 → 2/3 → 1/3 → 2/3`非单调波动，客户端必须原样记录，不能自行
+   强制单调或覆盖服务器判断。
 10. Recovery NAVIGATE可能收到iPlanner生成的短轨迹，再被固定`safe_distance_m=0.5`进一步截短；
     fear当前只记录、不参与客户端截断。本地`COMPLETED/REACHED`只表示到达截短轨迹终点，必须以
     服务器Escape Evaluator结果决定是否Handback。
@@ -1290,10 +1799,10 @@ images/iplanner/
 NAVIGATE、Escape失败重试和SAFE_STOP已通过。下一步继续真实运动联调：
 
 1. 检查`/health`包含`phase4_stage_progress_v2`和`phase6_recovery_control_v1`；
-2. 使用独立新Session验证`STOP_CONFIRMED → end_session(SUCCESS)`的真实Isaac成功结束；
-3. 在Isaac中重新触发修复后的Physical candidate，验证Strong Verifier和在线PREEMPT；
-4. 验证`sustained=true`的Semantic candidate能否进入同一PREEMPT/Recovery入口；
-5. 分别验证Recovery BACKTRACK实际执行、一次有效Escape后的Navigator Handback；
+2. 在正常导航参数下继续观察Physical candidate的触发频率；受控低速触发链路已验证；
+3. 验证正式8765自然产生的`sustained=true` Semantic候选与PREEMPT链路；8766受控握手已通过，无需重复；
+4. 验证服务器Recovery BACKTRACK实际执行与Escape闭环；一次有效Escape后的Handback并最终STOP已在2.15通过；
+5. 重复正常成功任务，统计Stage Progress提前推进/回退频率，但不在客户端修改模型进度；
 6. 最后将同一状态转换迁移到真机DDS + D435 + 预建SLAM地图重定位。
 
 当前明确禁止提前加入自定义 `STOP_HOLD`、`STOP_EVALUATING`、`stop_attempt_id`、`SAFE_HOLD`、
@@ -1314,6 +1823,8 @@ NAVIGATE、Escape失败重试和SAFE_STOP已通过。下一步继续真实运动
 
 真机 Physical Monitor 中的 LaViRA `collision_streak` 应继续定义为 NAVIGATION 平移窗口的连续低
 位移次数，不代表真实物理接触。真实接触、急停或人工 `Ctrl+C` 必须使用独立安全字段和处理路径。
+
+独立真机高层 DDS 测试的命令、现场结果与限制见 [README_G1_REAL_TEST.md](README_G1_REAL_TEST.md)。
 
 ## 14. 自动化测试
 

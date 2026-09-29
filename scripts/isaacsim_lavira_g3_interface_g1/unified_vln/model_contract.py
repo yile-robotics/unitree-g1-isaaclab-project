@@ -1,3 +1,7 @@
+# 中文导读：
+# 协议兼容入口：复用 isaacsim_goal_tracking 的 schema-v2 类型，避免复制字段定义后两边漂移。
+# 基础动作/bbox 校验在旧协议中，新增 G3 监督字段则由 session_client 校验。
+
 from __future__ import annotations
 
 """只读复用已经运行稳定的 schema-v2 模型通信协议。

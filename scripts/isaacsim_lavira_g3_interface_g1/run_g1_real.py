@@ -1,4 +1,9 @@
 #!/usr/bin/env python3
+# 中文导读：
+# 真机阅读主线：main → run → 初始化 DDS/相机/SLAM → start_remote_session → update 循环 → 清理。
+# 本文件负责装配组件和发送速度，模型角色在远端服务运行，关节控制由 G1 运动服务完成。
+# 默认 G3 模式需要有效 SLAM 位姿和探索地图标定；参数由命令行读取，不自动加载 config.yaml。
+
 from __future__ import annotations
 
 """真实 G1 的统一 VLN runner 框架。
@@ -10,6 +15,7 @@ RGB-D 相机因设备型号、序列号和标定尚未确定，通过 ``module:f
 
 import argparse
 import importlib
+import json
 import math
 import os
 from pathlib import Path
@@ -23,7 +29,9 @@ from unified_vln.g1_dds_backend import UnitreeG1DDSBackend
 from unified_vln.iplanner_client import IPlannerClient
 from unified_vln.local_trajectory import LocalFollowerConfig
 from unified_vln.model_client import CombinedModelClient
+from unified_vln.map_progress import SparseEpisodeExplorationMap, SparseMapConfig
 from unified_vln.ros2_odometry import Ros2OdometryProvider
+from unified_vln.session_client import G3SessionClient
 
 
 SCRIPT_DIR = Path(__file__).resolve().parent
@@ -36,16 +44,21 @@ PROJECT_DIR = SCRIPT_DIR.parents[1]
 _active_dds: UnitreeG1DDSBackend | None = None
 _active_camera: CameraBackend | None = None
 _active_odometry: Ros2OdometryProvider | None = None
+_active_episode: LocalEndToEndEpisode | None = None
 
 
+# 资源清理顺序很重要：先停止机器人再尝试远端 HTTP，避免等待网络时仍在运动。
+# 只有 stop_confirmed 才算语义任务成功；达到决策上限只是停止实验。
 def _shutdown_active_resources() -> None:
     """按 Uni-LaViRA 的顺序尽力停止运动，再关闭所有已创建资源。"""
 
-    global _active_dds, _active_camera, _active_odometry
+    global _active_dds, _active_camera, _active_odometry, _active_episode
 
     dds = _active_dds
     camera = _active_camera
     odometry = _active_odometry
+    episode = _active_episode
+    _active_episode = None
 
     # 先清零并直接调用 StopMove；dds.close() 会在停止发送线程前再次停车，
     # 对应 Uni-LaViRA 的 ``stop_robot()`` 后再进入 ``shutdown()``。
@@ -74,6 +87,24 @@ def _shutdown_active_resources() -> None:
     _active_dds = None
     _active_camera = None
     _active_odometry = None
+
+    # HTTP 清理可能耗时，必须在机器人和传感器已停止后执行。
+    if episode is not None and episode.remote_session_active:
+        success = (
+            episode.failure_reason is None
+            and episode.session_success_reason == "stop_confirmed"
+        )
+        reason = (
+            "stop_confirmed" if success else
+            episode.session_failure_reason or episode.failure_reason or
+            ("decision_limit_reached" if episode.completed else "runner_terminated")
+        )
+        try:
+            episode.end_remote_session(
+                status="SUCCESS" if success else "FAILURE", reason=reason
+            )
+        except Exception as exc:
+            print(f"[LOCAL-VLN G3 WARN] end_session failed: {exc}", flush=True)
 
 
 def _signal_handler(_sig, _frame) -> None:
@@ -109,6 +140,14 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--session-id", default=None)
     parser.add_argument("--model-url", required=True)
     parser.add_argument("--model-timeout-s", type=_positive_float, default=90.0)
+    parser.add_argument("--g3-session", action=argparse.BooleanOptionalAction, default=True)
+    parser.add_argument("--g3-session-timeout-s", type=_positive_float, default=180.0)
+    parser.add_argument("--g3-motion-window-s", type=_positive_float, default=1.0)
+    parser.add_argument(
+        "--map-config", type=Path,
+        help="JSON SparseMapConfig with explicit real-camera extrinsics and base/floor heights; required for G3.",
+    )
+    parser.add_argument("--odometry-startup-timeout-s", type=_positive_float, default=10.0)
     parser.add_argument("--iplanner-url", required=True)
     parser.add_argument("--iplanner-timeout-s", type=_positive_float, default=5.0)
 
@@ -136,8 +175,8 @@ def build_parser() -> argparse.ArgumentParser:
         "--odometry-topic",
         default=None,
         help=(
-            "ROS 2 nav_msgs/msg/Odometry topic. Omit only to use command-based "
-            "dead reckoning."
+            "SLAM world-frame base pose (nav_msgs/msg/Odometry); provides both "
+            "position and rotation yaw. Omit only for legacy dead-reckoning diagnostics."
         ),
     )
     parser.add_argument("--odometry-timeout-s", type=_positive_float, default=0.5)
@@ -157,8 +196,8 @@ def build_parser() -> argparse.ArgumentParser:
         action=argparse.BooleanOptionalAction,
         default=False,
         help=(
-            "Use fresh DDS IMU yaw for closed-loop relative rotation. Disabled "
-            "by default to match Uni-LaViRA G1; pass --use-imu-rotation to opt in."
+            "Legacy diagnostics without --odometry-topic only: use DDS IMU yaw. "
+            "With SLAM configured, yaw always comes from SLAM."
         ),
     )
     parser.add_argument("--imu-timeout-s", type=_positive_float, default=1.0)
@@ -240,6 +279,7 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+# MODULE:FUNCTION 是用户相机工厂入口；这里只验证接口存在，尚未证明能读取有效第一帧。
 def _load_camera_backend(factory_spec: str, config_path: Path) -> CameraBackend:
     module_name, separator, factory_name = factory_spec.partition(":")
     if not separator or not module_name or not factory_name:
@@ -265,6 +305,54 @@ def _close_optional(resource) -> None:
         close()
 
 
+# 必须显式给出真机安装几何，避免默默使用仿真尺寸；相机内参 K 则从 ViewFrame 获取。
+def _load_map_config(path: Path) -> SparseMapConfig:
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    required = {
+        "camera_offset_x_m", "camera_offset_y_m", "camera_offset_z_m",
+        "camera_yaw_rad", "camera_down_tilt_rad", "nominal_base_height_m",
+        "floor_z_world_m",
+    }
+    if not isinstance(payload, dict) or not required.issubset(payload):
+        raise ValueError("--map-config must explicitly provide: " + ", ".join(sorted(required)))
+    return SparseMapConfig(**payload).validated()
+
+
+# 先等到有效位姿且 frame_id 非空；默认等待上限与位姿过期时间是两个不同参数。
+def _wait_for_odometry(odometry, timeout_s: float) -> str:
+    deadline = time.monotonic() + timeout_s
+    while True:
+        if odometry.get_pose() is not None and odometry.frame_id.strip():
+            return odometry.frame_id
+        if time.monotonic() >= deadline:
+            raise RuntimeError("G3 requires fresh SLAM odometry with a non-empty frame_id before navigation.")
+        time.sleep(0.05)
+
+
+class _SlamPoseSource:
+    """Use the same measured world pose for translation and rotation, without fallback."""
+
+    def __init__(self, provider, frame_id: str):
+        self.provider = provider
+        self.frame_id = frame_id
+
+    # 包装器把缺失位姿提升为异常，阻止跟随器把 None 当成可使用航位推算的情况。
+    # frame_id 只检查名称变化，不能检测同名坐标系内部的重定位跳变。
+    def get_pose(self):
+        pose = self.provider.get_pose()
+        if pose is None:
+            raise RuntimeError("SLAM world pose unavailable or stale; stopping navigation.")
+        if self.provider.frame_id != self.frame_id:
+            raise RuntimeError("SLAM frame_id changed; restart the episode in the new frame.")
+        return pose.validated()
+
+    # yaw 直接取同一份 SLAM 位姿，避免把 SLAM 位置与 DDS IMU 朝向混用。
+    def get_yaw(self) -> float:
+        return self.get_pose().yaw
+
+
+# locomotion 表示允许发送高层速度，不代表每轮切换机器人内部策略。
+# 从运动转入 stand 时主动调用 StopMove；等待期间仍保持零速度。
 def _apply_episode_command(
     dds: UnitreeG1DDSBackend,
     update,
@@ -287,8 +375,10 @@ def _apply_episode_command(
     return command, desired_mode
 
 
+# 入口分为参数校验、硬件装配、会话启动和控制循环四段；finally 覆盖初始化中途失败。
+# 本地模块的 import 也可能依赖相邻工程，应先确认 SDK、ROS 与 iPlanner 客户端可导入。
 def run(args: argparse.Namespace) -> int:
-    global _active_dds, _active_camera, _active_odometry
+    global _active_dds, _active_camera, _active_odometry, _active_episode
 
     if args.max_decisions < 0:
         raise ValueError("--max-decisions must be >= 0; use 0 for unlimited.")
@@ -298,6 +388,16 @@ def run(args: argparse.Namespace) -> int:
         raise ValueError("--network-interface must not be empty.")
     if args.min_depth_m >= args.max_depth_m:
         raise ValueError("Depth range must satisfy min < max.")
+    map_config = None
+    session_client = None
+    # G3 默认开启：先验证本地证据来源，再构造远端客户端，此时尚未发送 HTTP。
+    if args.g3_session:
+        if not args.odometry_topic or not args.odometry_topic.strip() or args.map_config is None:
+            raise ValueError("G3 requires --odometry-topic and --map-config; use --no-g3-session only for legacy diagnostics.")
+        map_config = _load_map_config(args.map_config)
+        session_client = G3SessionClient.from_decision_url(
+            args.model_url, args.g3_session_timeout_s
+        )
 
     session_id = args.session_id or time.strftime("g1_%Y%m%d_%H%M%S")
     camera = None
@@ -318,8 +418,21 @@ def run(args: argparse.Namespace) -> int:
             odometry = Ros2OdometryProvider(
                 topic=args.odometry_topic,
                 pose_timeout_s=args.odometry_timeout_s,
+                preserve_world_coordinates=True,
             )
             _active_odometry = odometry
+
+        exploration_map = None
+        pose_frame_id = "local_odom"
+        pose_source = None
+        # 即使关闭 G3，只要配置 SLAM，也统一把位置和旋转反馈接到 SLAM。
+        if odometry is not None:
+            pose_frame_id = _wait_for_odometry(odometry, args.odometry_startup_timeout_s)
+            pose_source = _SlamPoseSource(odometry, pose_frame_id)
+        if args.g3_session:
+            exploration_map = SparseEpisodeExplorationMap(
+                map_config, pose_frame_id=pose_frame_id, frame_epoch=0
+            )
 
         control_period_s = 1.0 / args.control_rate_hz
         episode = LocalEndToEndEpisode(
@@ -341,6 +454,8 @@ def run(args: argparse.Namespace) -> int:
                 min_depth_m=args.min_depth_m,
                 max_depth_m=args.max_depth_m,
                 action_timeout_s=args.action_timeout_s,
+                motion_window_s=args.g3_motion_window_s,
+                pose_frame_id=pose_frame_id,
                 single_forward_panorama=True,
                 enable_backtrack=True,
                 backtrack_max_path_m=args.backtrack_max_path_m,
@@ -377,11 +492,23 @@ def run(args: argparse.Namespace) -> int:
                 dead_reckoning_angular_scale=args.dead_reckoning_angular_scale,
             ),
             camera=camera,
-            model=CombinedModelClient(args.model_url, args.model_timeout_s),
+            model=CombinedModelClient(
+                args.model_url, args.model_timeout_s,
+                send_instruction=not args.g3_session,
+            ),
             planner=IPlannerClient(args.iplanner_url, args.iplanner_timeout_s),
-            odometry=odometry,
-            yaw_provider=dds if args.use_imu_rotation else None,
+            session_client=session_client,
+            exploration_map=exploration_map,
+            odometry=pose_source,
+            yaw_provider=(
+                pose_source if pose_source is not None
+                else dds if args.use_imu_rotation else None
+            ),
         )
+        # 在任何会话 HTTP 前登记对象，异常或 Ctrl+C 才能找到它并尝试结束会话。
+        _active_episode = episode
+        # health 与启动响应校验通过后才继续 HighStand；不把 HTTP 可达误认为协议匹配。
+        episode.start_remote_session()
 
         # 对齐 Uni-LaViRA 真机入口：所有后端完成初始化后、任务开始前，只调用
         # 一次 HighStand。后续导航仍始终使用同一个 LocoClient 高层速度控制器。
@@ -407,8 +534,12 @@ def run(args: argparse.Namespace) -> int:
         started_at = last_tick
         last_applied_command = np.zeros(3, dtype=np.float64)
         previous_mode = "stand"
+        # 导航目标约 20Hz，DDS 线程目标约 50Hz：这里计算命令，DDS 重复发送最近命令。
         while not episode.completed:
+            if pose_source is not None:
+                pose_source.get_pose()
             loop_started = time.monotonic()
+            # 用真实循环间隔覆盖上次相机/HTTP 耗时，不固定假设每次都恰好过了 0.05 秒。
             step_dt = max(loop_started - last_tick, 1e-6)
             last_tick = loop_started
             update = episode.update(
@@ -421,6 +552,9 @@ def run(args: argparse.Namespace) -> int:
                 stand_ready=True,
                 locomotion_ready=True,
             )
+            # 相机/HTTP 调用可能耗时，下发本轮速度前再次确认位姿仍有效。
+            if pose_source is not None:
+                pose_source.get_pose()
             command, previous_mode = _apply_episode_command(
                 dds,
                 update,

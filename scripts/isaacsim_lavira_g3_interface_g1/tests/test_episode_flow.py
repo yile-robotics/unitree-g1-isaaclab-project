@@ -1451,6 +1451,73 @@ class EpisodeFlowTest(unittest.TestCase):
         self.assertEqual(episode.decision_index, 1)
         self.assertEqual(len(episode.history), 1)
 
+    def test_completed_navigator_accepts_late_completion_recovery_transition(self):
+        session = _SessionClient(
+            complete_next_action="REQUEST_RECOVERY_DECISION"
+        )
+        pose = Pose2D(0.0, 0.0, 0.0, 0.0)
+        camera = _Camera()
+        episode = LocalEndToEndEpisode(
+            EpisodeConfig(
+                session_id="late_completion_recovery_test",
+                instruction="go",
+                warmup_steps=0,
+                post_action_stand_s=0.1,
+            ),
+            LocalFollowerConfig(replan_interval_s=10.0),
+            camera=camera,
+            model=_Model(),
+            planner=_Planner(),
+            session_client=session,
+            odometry=_StaticOdometry(pose),
+            exploration_map=SparseEpisodeExplorationMap(
+                SparseMapConfig(depth_stride=4), pose_frame_id="isaac_world"
+            ),
+        )
+        episode.start_remote_session()
+        panorama = camera.capture_panorama(0, 0.0)
+        response, _ = _Model.decide(
+            _Model.make_request(
+                panorama,
+                session_id="late_completion_recovery_test",
+                instruction="go",
+                decision_index=0,
+            ),
+            {},
+        )
+        episode.pending = SimpleNamespace(
+            response=response,
+            panorama=panorama,
+            projection=SimpleNamespace(goal_after_turn_xy_m=np.array([1.0, 0.0])),
+            decision_pose=pose,
+            action_source="NAVIGATOR",
+        )
+        episode._begin_action_finish(
+            status="COMPLETED",
+            reason="local_goal_reached",
+            planner_result="REACHED",
+        )
+
+        update = episode.update(
+            completed_step=1,
+            step_dt=0.1,
+            timestamp=0.1,
+            applied_command=np.zeros(3),
+            stand_ready=True,
+            locomotion_ready=False,
+        )
+
+        self.assertEqual(update.state, EpisodeState.CAPTURE_AND_DECIDE)
+        self.assertTrue(episode._recovery_expected)
+        self.assertEqual(episode.decision_index, 1)
+        self.assertEqual(len(episode.history), 1)
+        complete_calls = [
+            call[1] for call in session.calls if call[0] == "action_complete"
+        ]
+        self.assertEqual(len(complete_calls), 1)
+        self.assertEqual(complete_calls[0]["status"], "COMPLETED")
+        self.assertNotEqual(complete_calls[0]["status"], "PREEMPTED")
+
     def test_selected_pre_turn_depth_then_fresh_forward_iplanner_depth(self):
         camera = _Camera()
         planner = _Planner()
