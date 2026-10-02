@@ -41,6 +41,7 @@ def main() -> int:
         node_name="g1_slam_pose_monitor",
     )
     start_xy: tuple[float, float] | None = None
+    start_yaw: float | None = None
     last_status = ""
     print(f"仅读取 {args.topic}；按 Ctrl+C 结束，不发送运动命令。", flush=True)
 
@@ -66,11 +67,15 @@ def main() -> int:
                 last_status = ""
                 if start_xy is None:
                     start_xy = (pose.x, pose.y)
+                    start_yaw = pose.yaw
                 displacement = math.hypot(pose.x - start_xy[0], pose.y - start_xy[1])
+                assert start_yaw is not None
+                relative_yaw = (pose.yaw - start_yaw + math.pi) % (2.0 * math.pi) - math.pi
                 print(
                     f"{time.strftime('%H:%M:%S')}  map -> base_link  "
                     f"x={pose.x:+.3f} m  y={pose.y:+.3f} m  "
                     f"yaw={math.degrees(pose.yaw):+.1f} deg  "
+                    f"相对起点yaw={math.degrees(relative_yaw):+.1f} deg  "
                     f"距监控起点={displacement:.3f} m",
                     flush=True,
                 )

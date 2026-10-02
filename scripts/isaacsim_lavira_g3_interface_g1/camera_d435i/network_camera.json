@@ -1,0 +1,11 @@
+{
+  "host": "192.168.123.164",
+  "port": 8765,
+  "serial": "344422072128",
+  "width": 640,
+  "height": 480,
+  "timeout_s": 3.0,
+  "max_round_trip_s": 0.75,
+  "max_server_frame_age_s": 0.2,
+  "max_pair_delta_ms": 50.0
+}

@@ -1,4 +1,5 @@
 logs/
+camera_logs/
 outputs/
 results/
 *.egg-info/
