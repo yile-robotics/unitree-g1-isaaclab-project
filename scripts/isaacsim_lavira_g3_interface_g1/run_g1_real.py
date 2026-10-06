@@ -24,7 +24,9 @@ import time
 
 import numpy as np
 
-from unified_vln.episode import CameraBackend, EpisodeConfig, LocalEndToEndEpisode
+from unified_vln.episode import CameraBackend, EpisodeConfig
+from unified_vln.real_episode import RealG1Episode, RealPanoramaConfig
+from unified_vln.real_panorama_imu import LowStateYaw
 from unified_vln.g1_dds_backend import UnitreeG1DDSBackend
 from unified_vln.iplanner_client import IPlannerClient
 from unified_vln.local_trajectory import LocalFollowerConfig
@@ -44,7 +46,8 @@ PROJECT_DIR = SCRIPT_DIR.parents[1]
 _active_dds: UnitreeG1DDSBackend | None = None
 _active_camera: CameraBackend | None = None
 _active_odometry: Ros2OdometryProvider | None = None
-_active_episode: LocalEndToEndEpisode | None = None
+_active_episode: RealG1Episode | None = None
+_active_panorama_imu: LowStateYaw | None = None
 
 
 # 资源清理顺序很重要：先停止机器人再尝试远端 HTTP，避免等待网络时仍在运动。
@@ -52,7 +55,7 @@ _active_episode: LocalEndToEndEpisode | None = None
 def _shutdown_active_resources() -> None:
     """按 Uni-LaViRA 的顺序尽力停止运动，再关闭所有已创建资源。"""
 
-    global _active_dds, _active_camera, _active_odometry, _active_episode
+    global _active_dds, _active_camera, _active_odometry, _active_episode, _active_panorama_imu
 
     dds = _active_dds
     camera = _active_camera
@@ -78,6 +81,12 @@ def _shutdown_active_resources() -> None:
             _close_optional(camera)
         except Exception:
             pass
+    if _active_panorama_imu is not None:
+        try:
+            _active_panorama_imu.close()
+        except Exception:
+            pass
+        _active_panorama_imu = None
     if odometry is not None:
         try:
             odometry.close()
@@ -191,13 +200,18 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--rotation-speed-rad-s", type=_positive_float, default=0.4)
     parser.add_argument("--rotation-settle-s", type=_positive_float, default=0.5)
+    parser.add_argument("--panorama-speed-rad-s", type=_positive_float, default=0.8,
+                        help="Real four-quarter capture speed; separate from navigation turns.")
+    parser.add_argument("--panorama-imu-stop-deg", type=_positive_float, default=75.0,
+                        help="IMU early-stop threshold per panorama quarter; default 75 degrees.")
+    parser.add_argument("--panorama-quarter-timeout-s", type=_positive_float, default=10.0)
     parser.add_argument(
         "--use-imu-rotation",
         action=argparse.BooleanOptionalAction,
         default=False,
         help=(
-            "Legacy diagnostics without --odometry-topic only: use DDS IMU yaw. "
-            "With SLAM configured, yaw always comes from SLAM."
+            "Compatibility flag for navigation turns; with SLAM configured they use SLAM. "
+            "Real panorama always uses its dedicated rt/lowstate IMU."
         ),
     )
     parser.add_argument("--imu-timeout-s", type=_positive_float, default=1.0)
@@ -378,7 +392,7 @@ def _apply_episode_command(
 # 入口分为参数校验、硬件装配、会话启动和控制循环四段；finally 覆盖初始化中途失败。
 # 本地模块的 import 也可能依赖相邻工程，应先确认 SDK、ROS 与 iPlanner 客户端可导入。
 def run(args: argparse.Namespace) -> int:
-    global _active_dds, _active_camera, _active_odometry, _active_episode
+    global _active_dds, _active_camera, _active_odometry, _active_episode, _active_panorama_imu
 
     if args.max_decisions < 0:
         raise ValueError("--max-decisions must be >= 0; use 0 for unlimited.")
@@ -398,6 +412,12 @@ def run(args: argparse.Namespace) -> int:
         session_client = G3SessionClient.from_decision_url(
             args.model_url, args.g3_session_timeout_s
         )
+    if not args.odometry_topic or not args.odometry_topic.strip():
+        raise ValueError("Real panorama requires --odometry-topic for SLAM checks, including legacy model mode.")
+    panorama_config = RealPanoramaConfig(
+        speed_rad_s=args.panorama_speed_rad_s, imu_stop_deg=args.panorama_imu_stop_deg,
+        settle_s=args.rotation_settle_s, quarter_timeout_s=args.panorama_quarter_timeout_s,
+    ).validated()
 
     session_id = args.session_id or time.strftime("g1_%Y%m%d_%H%M%S")
     camera = None
@@ -412,6 +432,7 @@ def run(args: argparse.Namespace) -> int:
         )
         _active_dds = dds
         dds.stop()
+        _active_panorama_imu = LowStateYaw(timeout_s=0.5)
         camera = _load_camera_backend(args.camera_factory, args.camera_config)
         _active_camera = camera
         if args.odometry_topic is not None:
@@ -425,7 +446,7 @@ def run(args: argparse.Namespace) -> int:
         exploration_map = None
         pose_frame_id = "local_odom"
         pose_source = None
-        # 即使关闭 G3，只要配置 SLAM，也统一把位置和旋转反馈接到 SLAM。
+        # 世界位置与导航转向使用SLAM，全景提前停车另用rt/lowstate IMU。
         if odometry is not None:
             pose_frame_id = _wait_for_odometry(odometry, args.odometry_startup_timeout_s)
             pose_source = _SlamPoseSource(odometry, pose_frame_id)
@@ -435,7 +456,8 @@ def run(args: argparse.Namespace) -> int:
             )
 
         control_period_s = 1.0 / args.control_rate_hz
-        episode = LocalEndToEndEpisode(
+        _active_panorama_imu.wait_ready()
+        episode = RealG1Episode(
             EpisodeConfig(
                 session_id=session_id,
                 instruction=args.instruction,
@@ -504,6 +526,9 @@ def run(args: argparse.Namespace) -> int:
                 pose_source if pose_source is not None
                 else dds if args.use_imu_rotation else None
             ),
+            panorama_imu=_active_panorama_imu,
+            stop_robot=dds.stop,
+            real_panorama_config=panorama_config,
         )
         # 在任何会话 HTTP 前登记对象，异常或 Ctrl+C 才能找到它并尝试结束会话。
         _active_episode = episode

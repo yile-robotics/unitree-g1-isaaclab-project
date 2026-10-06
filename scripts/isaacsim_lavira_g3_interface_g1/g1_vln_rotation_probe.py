@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""用VLN DDS后端测试旋转，不采集图像。
+"""用VLN DDS后端测试旋转，可在每段停稳后采集真实RGB-D。
 
 imu45：0.6rad/s，IMU达到45°停车；timed/slam：复用定时/地图反馈旋转器。
 imu75_panorama：0.8rad/s，每段IMU达到75°停车，停稳后检查SLAM转角并进入下一段。
@@ -14,6 +14,7 @@ import math
 import os
 import signal
 import time
+from pathlib import Path
 
 from g1_real_smoke import StateMonitor
 from g1_rotation_rpc_probe import _pose_yaw
@@ -42,6 +43,7 @@ _active_dds: UnitreeG1DDSBackend | None = None
 _active_odom: Ros2OdometryProvider | None = None
 _active_subscriber = None
 _active_slam_subscriber = None
+_active_capture = None
 _cleaned_up = False
 
 
@@ -52,7 +54,7 @@ def _wrap_to_pi(angle: float) -> float:
 def _cleanup() -> None:
     """先请求停车并关闭 DDS 发送线程，再关闭只读订阅器。"""
 
-    global _active_dds, _active_odom, _active_subscriber, _active_slam_subscriber, _cleaned_up
+    global _active_dds, _active_odom, _active_subscriber, _active_slam_subscriber, _active_capture, _cleaned_up
     if _cleaned_up:
         return
     _cleaned_up = True
@@ -66,6 +68,12 @@ def _cleanup() -> None:
         except Exception as exc:
             print(f"[ROTATION PROBE] close error: {exc}", flush=True)
         _active_dds = None
+    if _active_capture is not None:
+        try:
+            _active_capture.close()
+        except Exception as exc:
+            print(f"[ROTATION PROBE] camera close error: {exc}", flush=True)
+        _active_capture = None
     if _active_odom is not None:
         try:
             _active_odom.close()
@@ -201,8 +209,10 @@ def _run_imu75_panorama(
     slam_monitor: PoseMonitor,
     *,
     quarters: int,
-) -> None:
-    """用正式 VLN DDS 后端连续转向，每段停车稳定后模拟一次相机采集。"""
+    capture=None,
+    on_rotation_start=None,
+) -> list[float]:
+    """四段沿用已实测的IMU 75°停车逻辑；可回调真实采图，SLAM检查停稳转角。"""
 
     completed: list[float] = []
     directions = ("left", "behind", "right", "forward")
@@ -212,7 +222,12 @@ def _run_imu75_panorama(
         "SLAM is observation only; Ctrl+C stops",
         flush=True,
     )
-    print("[ROTATION PROBE] simulated capture: forward (initial); no camera frame saved", flush=True)
+    if capture is None:
+        print("[ROTATION PROBE] simulated capture: forward (initial); no camera frame saved", flush=True)
+    else:
+        dds.stop()
+        time.sleep(SETTLE_S)
+        capture("forward", 0)
     for quarter in range(1, quarters + 1):
         initial_imu = monitor.require_fresh()
         initial_map = _fresh_slam_yaw(slam_monitor)
@@ -223,6 +238,8 @@ def _run_imu75_panorama(
         stop_reason = "10 s time limit"
         print(f"[ROTATION PROBE] starting quarter {quarter}/{quarters}", flush=True)
         try:
+            if on_rotation_start is not None:
+                on_rotation_start()
             dds.set_velocity(0.0, 0.0, 0.8)
             while time.monotonic() - started < 10.0:
                 current_imu = monitor.require_fresh()
@@ -271,16 +288,21 @@ def _run_imu75_panorama(
                 "stopping before the next quarter"
             )
         completed.append(map_deg)
-        print(
-            f"[ROTATION PROBE] simulated capture: {directions[quarter-1]} "
-            f"({quarter}/{quarters}); no camera frame saved",
-            flush=True,
-        )
+        if capture is None:
+            print(
+                f"[ROTATION PROBE] simulated capture: {directions[quarter-1]} "
+                f"({quarter}/{quarters}); no camera frame saved",
+                flush=True,
+            )
+        else:
+            # 第四段的回正图单独保存，避免覆盖初始前方图。
+            capture("forward_return" if quarter == 4 else directions[quarter-1], quarter)
     print(
         f"[ROTATION PROBE] panorama complete; sum of SLAM quarter turns="
         f"{sum(completed):+.1f}°",
         flush=True,
     )
+    return completed
 
 
 def _run_quarter(
@@ -398,6 +420,13 @@ def main() -> int:
     )
     parser.add_argument("--rotation-duration-scale", type=float, default=1.0)
     parser.add_argument("--execute", action="store_true", help="required to send real motion")
+    parser.add_argument("--capture-panorama", action="store_true", help="imu75_panorama停稳后保存真实RGB-D")
+    parser.add_argument("--camera-config", type=Path, default=Path(__file__).resolve().parent /
+                        "camera_d435i/network_camera_d415_local.json")
+    parser.add_argument("--output", type=Path, help="采图输出目录，必须是新目录")
+    camera_mount = parser.add_mutually_exclusive_group()
+    camera_mount.add_argument("--camera-on-desk", action="store_true", help="相机未随机器人转动，仅验证采集时序")
+    camera_mount.add_argument("--camera-manual-follow", action="store_true", help="手动让相机跟随旋转，记录为非固定安装测试")
     args = parser.parse_args()
     if not args.execute:
         parser.error("--execute is required for real robot rotation")
@@ -411,13 +440,26 @@ def main() -> int:
         parser.error("--mode imu75_panorama requires --quarters 4")
     if args.mode == "timed" and args.quarters == 4:
         parser.error("four quarters require --mode slam and fresh map yaw feedback")
+    if args.capture_panorama and (args.mode != "imu75_panorama" or args.output is None):
+        parser.error("--capture-panorama requires --mode imu75_panorama and --output")
+    if not args.capture_panorama and (args.output is not None or args.camera_on_desk or args.camera_manual_follow):
+        parser.error("--output / camera placement flags require --capture-panorama")
+    if args.capture_panorama and args.output.exists():
+        parser.error("--output 已存在，请使用新目录")
     signal.signal(signal.SIGINT, _on_sigint)
 
     from unitree_sdk2py.core.channel import ChannelSubscriber
     from unitree_sdk2py.idl.unitree_hg.msg.dds_ import LowState_
 
-    global _active_dds, _active_odom, _active_subscriber, _active_slam_subscriber
+    global _active_dds, _active_odom, _active_subscriber, _active_slam_subscriber, _active_capture
     try:
+        if args.capture_panorama:
+            from rotation_capture import RotationCapture
+
+            _active_capture = RotationCapture(args.camera_config, args.output, args.camera_on_desk,
+                                              manual_follow=args.camera_manual_follow)
+            # 实际接收一组RGB-D再初始化运控；相机失败不会启动旋转。
+            _active_capture.preflight()
         _active_dds = UnitreeG1DDSBackend(args.network_interface)
         monitor = StateMonitor()
         _active_subscriber = ChannelSubscriber("rt/lowstate", LowState_)
@@ -443,9 +485,21 @@ def main() -> int:
                     time.sleep(0.05)
             else:
                 raise RuntimeError("no fresh SLAM currentPose within 3 seconds")
-            _run_imu75_panorama(
-                _active_dds, monitor, slam_monitor, quarters=args.quarters
+            if _active_capture is not None:
+                _active_dds.stop()
+                _active_capture.bind_monitors(monitor, slam_monitor)
+                for count in (3, 2, 1):
+                    print(f"[ROTATION PROBE] starting in {count}...; Ctrl+C stops", flush=True)
+                    time.sleep(1)
+            turns = _run_imu75_panorama(
+                _active_dds, monitor, slam_monitor, quarters=args.quarters,
+                capture=_active_capture.capture if _active_capture is not None else None,
+                on_rotation_start=_active_capture.mark_rotation_started if _active_capture is not None else None,
             )
+            if _active_capture is not None:
+                _active_capture.finish("PASS", slam_quarter_turns_deg=turns,
+                                       total_slam_turn_deg=sum(turns))
+                print(f"[ROTATION PROBE] saved RGB-D: {args.output.resolve()}", flush=True)
             return 0
 
         slam = None
@@ -498,6 +552,10 @@ def main() -> int:
             flush=True,
         )
         return 0
+    except Exception as exc:
+        if _active_capture is not None:
+            _active_capture.finish("FAILED", error=str(exc))
+        raise
     finally:
         _cleanup()
 

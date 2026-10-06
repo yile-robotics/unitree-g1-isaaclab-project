@@ -31,6 +31,7 @@ class RealSessionTest(unittest.TestCase):
         runner._active_dds = None
         runner._active_camera = None
         runner._active_odometry = None
+        runner._active_panorama_imu = None
 
     def args(self, *extra):
         return runner.build_parser().parse_args([
@@ -91,16 +92,17 @@ class RealSessionTest(unittest.TestCase):
         episode.start_remote_session.side_effect = start
         episode.update.side_effect = update
         episode.end_remote_session.side_effect = lambda **kw: events.append("end")
-        extra = (["--no-g3-session"] if legacy else [
+        extra = (["--no-g3-session", "--odometry-topic", "/Odometry"] if legacy else [
             "--odometry-topic", "/Odometry", "--map-config", str(self.map_path)])
         with ExitStack() as stack:
             for name, value in [("UnitreeG1DDSBackend", dds),
                                 ("_load_camera_backend", camera),
                                 ("Ros2OdometryProvider", odom),
+                                ("LowStateYaw", MagicMock()),
                                 ("IPlannerClient", MagicMock())]:
                 stack.enter_context(patch.object(runner, name, return_value=value))
             make_episode = stack.enter_context(patch.object(
-                runner, "LocalEndToEndEpisode", return_value=episode))
+                runner, "RealG1Episode", return_value=episode))
             stack.enter_context(patch.object(runner.time, "sleep"))
             if start_error or update_error:
                 with self.assertRaises(RuntimeError):
@@ -110,6 +112,11 @@ class RealSessionTest(unittest.TestCase):
 
         kwargs = make_episode.call_args.kwargs
         self.assertEqual(kwargs["model"].send_instruction, legacy)
+        self.assertEqual(kwargs["real_panorama_config"].speed_rad_s, 0.8)
+        self.assertEqual(kwargs["real_panorama_config"].imu_stop_deg, 75.0)
+        self.assertEqual(kwargs["real_panorama_config"].settle_s, 0.5)
+        self.assertIs(kwargs["stop_robot"], dds.stop)
+        self.assertIsNotNone(kwargs["panorama_imu"])
         if legacy:
             self.assertIsNone(kwargs["session_client"])
             self.assertIsNone(kwargs["exploration_map"])

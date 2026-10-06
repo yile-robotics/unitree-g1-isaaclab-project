@@ -31,6 +31,7 @@ class RealG1SignalTest(unittest.TestCase):
         run_g1_real._active_dds = None
         run_g1_real._active_camera = None
         run_g1_real._active_odometry = None
+        run_g1_real._active_panorama_imu = None
 
     def test_sigint_stops_dds_before_closing_resources_and_force_exits(self):
         events: list[str] = []
@@ -49,6 +50,15 @@ class RealG1SignalTest(unittest.TestCase):
         self.assertIsNone(run_g1_real._active_dds)
         self.assertIsNone(run_g1_real._active_camera)
         self.assertIsNone(run_g1_real._active_odometry)
+
+    def test_sigint_also_closes_dedicated_panorama_imu_after_stop(self):
+        events = []
+        run_g1_real._active_dds = _Resource("dds", events)
+        run_g1_real._active_panorama_imu = _Resource("imu", events)
+        with patch.object(run_g1_real.os, "_exit"):
+            run_g1_real._signal_handler(signal.SIGINT, None)
+        self.assertEqual(events, ["dds.stop", "dds.close", "imu.close"])
+        self.assertIsNone(run_g1_real._active_panorama_imu)
 
     def test_main_registers_sigint_before_running(self):
         parser = MagicMock()

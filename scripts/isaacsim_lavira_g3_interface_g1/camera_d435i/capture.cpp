@@ -112,6 +112,7 @@ int main(int argc, char** argv) {
         std::ofstream meta(output / "metadata.json");
         meta << std::setprecision(17) << "{\n\"sdk_version\":\"" << RS2_API_VERSION_STR
              << "\",\"serial\":" << std::quoted(serial)
+             << ",\"device_name\":" << std::quoted(device.get_info(RS2_CAMERA_INFO_NAME))
              << ",\"firmware\":" << std::quoted(device.get_info(RS2_CAMERA_INFO_FIRMWARE_VERSION))
              << ",\"color_encoding\":\"RGB8\",\"color_frame_number\":" << color.get_frame_number()
              << ",\"color_timestamp_ms\":" << color.get_timestamp()

@@ -35,6 +35,7 @@ def inspect(sample: Path) -> dict:
     percentiles = np.percentile(depth_m[valid], [1, 5, 50, 95, 99])
     same_domain = meta["color_timestamp_domain"] == meta["depth_timestamp_domain"]
     report = {
+        "device_name": meta.get("device_name", "RealSense"),
         "serial": meta["serial"], "sdk_version": meta["sdk_version"],
         "firmware": meta["firmware"], "shape_hw": list(raw.shape),
         "depth_scale_m": scale, "valid_depth_fraction": float(valid.mean()),
@@ -54,7 +55,7 @@ def inspect(sample: Path) -> dict:
     cmap.set_bad("black")
     fig, axes = plt.subplots(1, 2, figsize=(12, 5), constrained_layout=True)
     axes[0].imshow(rgb)
-    axes[0].set_title("D435i RGB (640 x 480)")
+    axes[0].set_title(f"{report['device_name']} RGB ({rgb.shape[1]} x {rgb.shape[0]})")
     image = axes[1].imshow(display, cmap=cmap, vmin=0, vmax=float(percentiles[-1]))
     axes[1].set_title(f"Aligned depth: {valid.mean():.3%} nonzero")
     fig.colorbar(image, ax=axes[1], label="Depth (m); display clipped at valid p99")
