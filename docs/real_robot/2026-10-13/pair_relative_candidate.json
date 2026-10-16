@@ -1,0 +1,165 @@
+{
+  "schema": 1,
+  "status": "RELATIVE_CANDIDATE",
+  "parent_frame": "old_rgb_optical",
+  "child_frame": "new_rgb_optical",
+  "old_camera_serial": "344422072128",
+  "new_camera_serial": "211222063932",
+  "T_old_rgb_new_rgb": [
+    [
+      0.9998500670828352,
+      0.001613398195868176,
+      -0.017240658360733616,
+      -0.0038526821743853595
+    ],
+    [
+      -0.015536662963429376,
+      0.5232016416708966,
+      -0.852067282705327,
+      0.05268960073003683
+    ],
+    [
+      0.007645616941147823,
+      0.8522073920702286,
+      0.5231482633464904,
+      0.13509128905955933
+    ],
+    [
+      0.0,
+      0.0,
+      0.0,
+      1.0
+    ]
+  ],
+  "translation_m": [
+    -0.0038526821743853595,
+    0.05268960073003683,
+    0.13509128905955933
+  ],
+  "rotation_vector_rad": [
+    1.0201516953360688,
+    -0.01489652830941581,
+    -0.010265753652109365
+  ],
+  "fit": {
+    "fit_views": 11,
+    "board_normal_span_deg": 70.94364493054175,
+    "joint_reprojection_rms_px": 0.4246996817186713,
+    "per_pair_initial_translation_difference_mm": [
+      5.380791668284456,
+      3.494623632838297,
+      1.8094833144332143,
+      3.3989006499531476,
+      3.1868907965707667,
+      4.878883842602275,
+      6.39293212175417,
+      1.8247149643111868,
+      4.2903244541656615,
+      1.3147331070990067,
+      2.907592818420107
+    ],
+    "per_pair_initial_rotation_difference_deg": [
+      0.5428220056533403,
+      0.5341881625176582,
+      0.3059721054450836,
+      0.5069165711127753,
+      0.45613359778517404,
+      0.5300576810558971,
+      0.5785823419239053,
+      0.2975497231786657,
+      0.5047655502637418,
+      0.40577632740760444,
+      0.5836799410687182
+    ]
+  },
+  "held_out_validation": {
+    "status": "HELD_OUT_REPORT",
+    "views": [
+      {
+        "pair": "pair_012",
+        "board_center_error_mm": 0.9126134925163552,
+        "rotation_error_deg": 1.5798295618454667,
+        "cross_projection_rms_px": 1.8974548962667315
+      },
+      {
+        "pair": "pair_013",
+        "board_center_error_mm": 0.33422266582315524,
+        "rotation_error_deg": 0.48419652925516904,
+        "cross_projection_rms_px": 0.8996059449153666
+      },
+      {
+        "pair": "pair_014",
+        "board_center_error_mm": 1.1017079689310842,
+        "rotation_error_deg": 0.6952575357335206,
+        "cross_projection_rms_px": 1.1668903773343207
+      }
+    ],
+    "center_rms_mm": 0.8481997850111908,
+    "max_center_error_mm": 1.1017079689310842,
+    "max_rotation_error_deg": 1.5798295618454667,
+    "max_cross_projection_rms_px": 1.8974548962667315
+  },
+  "board": {
+    "dictionary": "APRILTAG_36h11",
+    "marker_border_bits": 2,
+    "outer_square_side_m": 0.055,
+    "gap_x_m": 0.017,
+    "gap_y_m": 0.017,
+    "id_grid": [
+      [
+        0,
+        6,
+        12,
+        18,
+        24,
+        30
+      ],
+      [
+        1,
+        7,
+        13,
+        19,
+        25,
+        31
+      ],
+      [
+        2,
+        8,
+        14,
+        20,
+        26,
+        32
+      ],
+      [
+        3,
+        9,
+        15,
+        21,
+        27,
+        33
+      ],
+      [
+        4,
+        10,
+        16,
+        22,
+        28,
+        34
+      ],
+      [
+        5,
+        11,
+        17,
+        23,
+        29,
+        35
+      ]
+    ],
+    "source": "User measurements and 36-ID image verification on 2026-10-09; independent copy for dual-camera calibration",
+    "geometry": "Use diagonal-intersection centres; encoded marker border is not assumed to equal the measured 55 mm outer square"
+  },
+  "session": "/home/yile/projects/g1_camera_sdk/dual_camera_session_02/reprocessed_20261013",
+  "torso_reference_verified": false,
+  "applied_to_vln": false,
+  "notes": "Both RGB optical frames: X right, Y down, Z forward. Transform maps new coordinates into old. Validation uses independently estimated board poses, not physical ground truth."
+}

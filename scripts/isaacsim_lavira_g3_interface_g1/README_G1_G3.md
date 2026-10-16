@@ -50,6 +50,8 @@ instruction 只在 start_session 提交；decision 使用 Session 中的任务�
 
 - 已运行的 G3 服务或 SSH 隧道，`--model-url` 指向完整 `/v1/lavira/decision` 地址。
 - 已运行的本机 iPlanner 服务，参见 `run_iplanner_local.sh`。
+- 仅观察真实相机、目标和 iPlanner 路径而不行走时，先使用
+  [规划观察窗口](README_IPLANNER_VIEWER.md)，不运行本页的完整运控入口。
 - 可导入的 `MODULE:FUNCTION` 相机工厂，返回对齐 RGB-D 和真实内参的 CameraBackend。
 - 已运行的 SLAM，发布机器人基座位姿的 ROS 2 Odometry。此入口不启动 SLAM，也不做 TF
   外参转换。默认最多等待首个有效且 frame_id 非空的位姿 10 秒。

@@ -1,0 +1,337 @@
+{
+  "status": "CANDIDATE_REQUIRES_PHYSICAL_VALIDATION",
+  "target_frame": "torso_link",
+  "source_frame": "color_optical",
+  "convention": "p_torso = T_torso_camera @ p_camera; column homogeneous coordinates; metres",
+  "T_torso_camera": [
+    [
+      -0.037229592010458196,
+      0.06973796247297863,
+      0.9968703898044383,
+      0.07034302260082453
+    ],
+    [
+      -0.9984076356091444,
+      0.03971124119794574,
+      -0.04006507805905235,
+      0.049408873460541236
+    ],
+    [
+      -0.04238101740277244,
+      -0.9967746154034199,
+      0.06814848091681731,
+      0.3114064921892314
+    ],
+    [
+      0.0,
+      0.0,
+      0.0,
+      1.0
+    ]
+  ],
+  "T_camera_torso": [
+    [
+      -0.03722959201045854,
+      -0.9984076356091429,
+      -0.04238101740277336,
+      0.06514676252686989
+    ],
+    [
+      0.06973796247297855,
+      0.039711241197944815,
+      -0.9967746154034204,
+      0.3035344197243669
+    ],
+    [
+      0.9968703898044378,
+      -0.04006507805905187,
+      0.06814848091681737,
+      -0.0893651853784308
+    ],
+    [
+      0.0,
+      0.0,
+      0.0,
+      1.0
+    ]
+  ],
+  "fit_rms_m": 0.006026265836279644,
+  "check_rms_m": 0.008091711885232429,
+  "check_max_m": 0.009943765116332604,
+  "fit_errors_m": [
+    0.006474377537994579,
+    0.00492275319311952,
+    0.00715870087884611,
+    0.006250225734470546,
+    0.004695051333173303,
+    0.006276016973084731
+  ],
+  "check_errors_m": [
+    0.007821629460799026,
+    0.006030841698304047,
+    0.009943765116332604
+  ],
+  "urdf": "/home/yile/projects/unitree_ros/robots/g1_description/g1_29dof_rev_1_0.urdf",
+  "urdf_sha256": "7e397611652000262b03fe060096f77418b7df5c53edf2c7d0bda18758ca19db",
+  "probe": {
+    "probe_link": "left_wrist_yaw_link",
+    "tip_in_link_m": [
+      0.17332935118675233,
+      -0.02819001165032387,
+      0.006683507934212685
+    ],
+    "tip_measured": false,
+    "mount_on_torso_confirmed": true,
+    "notes": "MODEL CANDIDATE ONLY. Confirm real hand shape, exact contact point, dimensions and covering thickness before use.",
+    "tip_source": "model",
+    "model_candidate_path": "/home/yile/projects/g1_camera_sdk/hand_geometry_01/model_contact_candidate.json",
+    "mount_confirmation_source": "User stated camera is fixed to chest; rigid finger confirmed. Model contact offset remains unmeasured."
+  },
+  "reference_camera": {
+    "protocol": 1,
+    "sequence": 65191,
+    "serial": "211222063932",
+    "sdk_version": "2.54.1",
+    "width": 640,
+    "height": 480,
+    "rgb_encoding": "RGB8",
+    "depth_encoding": "Z16_BE",
+    "depth_aligned_to": "color",
+    "rgb_bytes": 921600,
+    "depth_bytes": 614400,
+    "depth_scale_m": 0.0010000000474974513,
+    "color_frame_number": 65206,
+    "depth_frame_number": 65204,
+    "color_timestamp_ms": 1791554293839.6038,
+    "depth_timestamp_ms": 1791554293839.0027,
+    "color_timestamp_domain": "Global Time",
+    "depth_timestamp_domain": "Global Time",
+    "color_intrinsics": {
+      "width": 640,
+      "height": 480,
+      "K": [
+        [
+          607.3560180664062,
+          0,
+          328.1311340332031
+        ],
+        [
+          0,
+          607.10205078125,
+          245.27926635742188
+        ],
+        [
+          0,
+          0,
+          1
+        ]
+      ],
+      "distortion_model": "Inverse Brown Conrady",
+      "coeffs": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    "aligned_depth_intrinsics": {
+      "width": 640,
+      "height": 480,
+      "K": [
+        [
+          607.3560180664062,
+          0,
+          328.1311340332031
+        ],
+        [
+          0,
+          607.10205078125,
+          245.27926635742188
+        ],
+        [
+          0,
+          0,
+          1
+        ]
+      ],
+      "distortion_model": "Inverse Brown Conrady",
+      "coeffs": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    "depth_to_color": {
+      "rotation_column_major": [
+        0.9999913573265076,
+        -0.002274871803820133,
+        -0.0034736045636236668,
+        0.0022388340439647436,
+        0.9999439716339111,
+        -0.010343598201870918,
+        0.0034969402477145195,
+        0.010335731320083141,
+        0.9999404549598694
+      ],
+      "translation_m": [
+        0.015019607730209827,
+        -0.00016812363173812628,
+        -0.00025426025968044996
+      ]
+    },
+    "camera_to_robot_extrinsics": null,
+    "startup_settings": {
+      "snapshot_stage": "after_pipeline_start_before_warmup",
+      "note": "Read-only sequential startup snapshot; automatic exposure can change afterwards; robot epoch clock may be incorrect",
+      "robot_epoch_s": 1791549911.8216841,
+      "sdk_version": "2.54.1",
+      "serial": "211222063932",
+      "firmware": "5.16.0.1",
+      "active_streams": [
+        {
+          "type": "Depth",
+          "format": "Z16",
+          "fps": 15,
+          "width": 640,
+          "height": 480
+        },
+        {
+          "type": "Color",
+          "format": "RGB8",
+          "fps": 15,
+          "width": 640,
+          "height": 480
+        }
+      ],
+      "sensors": [
+        {
+          "name": "Stereo Module",
+          "options": {
+            "enable_auto_exposure": {
+              "status": "ok",
+              "value": 1
+            },
+            "exposure": {
+              "status": "ok",
+              "value": 33000
+            },
+            "visual_preset": {
+              "status": "ok",
+              "value": 0,
+              "value_description": "Custom"
+            },
+            "emitter_enabled": {
+              "status": "ok",
+              "value": 1,
+              "value_description": "Laser"
+            },
+            "laser_power": {
+              "status": "ok",
+              "value": 150
+            }
+          }
+        },
+        {
+          "name": "RGB Camera",
+          "options": {
+            "enable_auto_exposure": {
+              "status": "ok",
+              "value": 1
+            },
+            "exposure": {
+              "status": "ok",
+              "value": 166
+            },
+            "visual_preset": {
+              "status": "unsupported",
+              "value": null
+            },
+            "emitter_enabled": {
+              "status": "unsupported",
+              "value": null
+            },
+            "laser_power": {
+              "status": "unsupported",
+              "value": null
+            }
+          }
+        }
+      ]
+    },
+    "server_frame_age_s": 0.002591814,
+    "client_received_monotonic_s": 5399.939413781,
+    "client_round_trip_s": 0.034902623000562016,
+    "pair_delta_ms": 0.60107421875,
+    "valid_depth_fraction": 0.7596875
+  },
+  "sampling_method": "live_board_per_contact",
+  "time_pairing": "Nearest joint reception time to image reception, <=50ms; quasi-static 1.2s contact. Not hardware exposure-time synchronisation.",
+  "notes": "Each contact uses its own camera-board pose and quasi-static image/joint reception pairing. Camera-board pose may change between contacts; camera must remain rigid relative to torso. Model contact offset and physical metric accuracy require independent validation. Not auto-installed in VLN; hardware exposure synchronisation and SLAM body frame remain unverified.",
+  "board_config": {
+    "status": "ID_LAYOUT_CONFIRMED_CORNER_MAPPING_PENDING",
+    "measured_date": "2026-10-09",
+    "marker_outer_side_m": 0.055,
+    "reported_white_gap_m": 0.017,
+    "derived_center_spacing_m": 0.072,
+    "horizontal_vertical_gap_equality_confirmed": true,
+    "marker_gap_x_m": 0.017,
+    "marker_gap_y_m": 0.017,
+    "dictionary": "APRILTAG_36h11",
+    "marker_border_bits": 2,
+    "marker_ids_by_position": [
+      [
+        0,
+        6,
+        12,
+        18,
+        24,
+        30
+      ],
+      [
+        1,
+        7,
+        13,
+        19,
+        25,
+        31
+      ],
+      [
+        2,
+        8,
+        14,
+        20,
+        26,
+        32
+      ],
+      [
+        3,
+        9,
+        15,
+        21,
+        27,
+        33
+      ],
+      [
+        4,
+        10,
+        16,
+        22,
+        28,
+        34
+      ],
+      [
+        5,
+        11,
+        17,
+        23,
+        29,
+        35
+      ]
+    ],
+    "notes": "User measured marker outer sides 55 mm and horizontal/vertical gaps 17 mm. All 36 IDs were independently decoded in at least two distinct RGB frames and agreed with the 6x6 column-major layout on 2026-10-09. Marker corner orientation and metric pose remain to be validated; this is not a camera-body calibration.",
+    "layout_evidence_path": "/home/yile/projects/g1_camera_sdk/marker_layout_verify_01/board_layout_confirmed.json"
+  }
+}

@@ -61,8 +61,8 @@ K = [[607.3560,   0,      328.1311],
 ```bash
 cd /home/yile/projects/unitree-g1-isaaclab-project
 source /home/yile/projects/.venvs/unitree_g1/bin/activate
-python scripts/isaacsim_lavira_g3_interface_g1/camera_d435i/network_camera.py \
-  --config scripts/isaacsim_lavira_g3_interface_g1/camera_d435i/network_camera_d415_local.json \
+python scripts/isaacsim_lavira_g3_interface_g1/camera_d415/network_camera.py \
+  --config scripts/isaacsim_lavira_g3_interface_g1/camera_d415/network_camera_d415_local.json \
   --seconds 60 --output /home/yile/projects/g1_camera_sdk/d415_stream_test_02
 ```
 
@@ -74,7 +74,7 @@ python scripts/isaacsim_lavira_g3_interface_g1/camera_d435i/network_camera.py \
 /home/yile/projects/g1_camera_sdk/local/build-probe-x86_64/g1_d435i_probe \
   --frames 150 --output /home/yile/projects/g1_camera_sdk/d415_rgbd_test_02
 /home/yile/projects/.venvs/g1_camera_analysis/bin/python \
-  /home/yile/projects/unitree-g1-isaaclab-project/scripts/isaacsim_lavira_g3_interface_g1/camera_d435i/inspect_capture.py \
+  /home/yile/projects/unitree-g1-isaaclab-project/scripts/isaacsim_lavira_g3_interface_g1/camera_d415/inspect_capture.py \
   /home/yile/projects/g1_camera_sdk/d415_rgbd_test_02
 ```
 

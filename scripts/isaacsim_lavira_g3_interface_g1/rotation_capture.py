@@ -8,7 +8,7 @@ import time
 import cv2
 import numpy as np
 
-from camera_d435i.network_camera import create_camera
+from camera_d415.network_camera import create_camera
 
 
 class RotationCapture:

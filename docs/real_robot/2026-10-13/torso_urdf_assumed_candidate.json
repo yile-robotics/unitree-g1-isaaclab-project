@@ -1,0 +1,138 @@
+{
+  "status": "URDF_ASSUMPTIONS_UNVERIFIED_ESTIMATE",
+  "camera_model": "D415",
+  "camera_serial": "211222063932",
+  "parent_frame": "torso_link",
+  "child_frame": "new_rgb_optical",
+  "T_torso_new_rgb": [
+    [
+      0.016628589498815335,
+      0.18828443267334985,
+      0.9819737585211504,
+      0.10980696170008263
+    ],
+    [
+      -0.9998500670828352,
+      -0.001613398195868176,
+      0.017240658360733616,
+      0.02138268217438536
+    ],
+    [
+      0.0048304622687536936,
+      -0.982113216161526,
+      0.1882293741028052,
+      0.29458239254883645
+    ],
+    [
+      0.0,
+      0.0,
+      0.0,
+      1.0
+    ]
+  ],
+  "translation_m": [
+    0.10980696170008263,
+    0.02138268217438536,
+    0.29458239254883645
+  ],
+  "rgb_optical_rpy_deg": [
+    -79.15040138793182,
+    -0.2767661774182973,
+    -89.04719697246799
+  ],
+  "mounting_flu_rpy_deg": [
+    -0.28180342635750094,
+    -10.849470497561635,
+    1.0058471226649672
+  ],
+  "T_torso_new_camera_flu": [
+    [
+      0.9819737585211504,
+      -0.016628589498815335,
+      -0.18828443267334985,
+      0.10980696170008263
+    ],
+    [
+      0.017240658360733616,
+      0.9998500670828352,
+      0.001613398195868176,
+      0.02138268217438536
+    ],
+    [
+      0.1882293741028052,
+      -0.0048304622687536936,
+      0.982113216161526,
+      0.29458239254883645
+    ],
+    [
+      0.0,
+      0.0,
+      0.0,
+      1.0
+    ]
+  ],
+  "T_d435_old_rgb_assumed": [
+    [
+      0.0,
+      0.0,
+      1.0,
+      0.0
+    ],
+    [
+      -1.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    [
+      0.0,
+      -1.0,
+      0.0,
+      0.0
+    ],
+    [
+      0.0,
+      0.0,
+      0.0,
+      1.0
+    ]
+  ],
+  "T_torso_d435_from_urdf": [
+    [
+      0.6743023875837234,
+      0.0,
+      0.7384553406258838,
+      0.0576235
+    ],
+    [
+      0.0,
+      1.0,
+      0.0,
+      0.01753
+    ],
+    [
+      -0.7384553406258838,
+      0.0,
+      0.6743023875837234,
+      0.42987
+    ],
+    [
+      0.0,
+      0.0,
+      0.0,
+      1.0
+    ]
+  ],
+  "urdf": "/home/yile/projects/unitree_ros/robots/g1_description/g1_29dof_rev_1_0.urdf",
+  "urdf_sha256": "7e397611652000262b03fe060096f77418b7df5c53edf2c7d0bda18758ca19db",
+  "convention": "T_A_B maps B into A; RPY is Rz(yaw) @ Ry(pitch) @ Rx(roll)",
+  "assumptions": [
+    "d435_link axes assumed X forward/Y left/Z up",
+    "d435_link origin assumed coincident with original RGB optical origin",
+    "Mounting remains as during the paired captures"
+  ],
+  "reference_verified": false,
+  "applied_to_vln": false,
+  "note": "Dual-camera validation does not validate this assumed torso anchor.",
+  "relative_candidate": "/home/yile/projects/g1_camera_sdk/dual_camera_session_02/reprocessed_20261013/relative_candidate.json"
+}

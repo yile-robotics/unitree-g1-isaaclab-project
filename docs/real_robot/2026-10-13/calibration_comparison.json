@@ -1,0 +1,155 @@
+{
+  "date": "2026-10-13",
+  "source_data_unchanged": true,
+  "physical_geometry_unchanged": true,
+  "hand": {
+    "old_position_m": [
+      0.0731607803369217,
+      0.045516013958535995,
+      0.30546900594912607
+    ],
+    "new_position_m": [
+      0.07034302260082453,
+      0.049408873460541236,
+      0.3114064921892314
+    ],
+    "old_mounting_flu_rpy_deg": [
+      2.6741846371923326,
+      -4.7406535734476565,
+      -1.705243661435273
+    ],
+    "new_mounting_flu_rpy_deg": [
+      2.434644418125386,
+      -3.907648986957409,
+      -2.301527950580913
+    ],
+    "change": {
+      "translation_delta_m": [
+        -0.0028177577360971595,
+        0.0038928595020052414,
+        0.005937486240105316
+      ],
+      "position_change_mm": 7.638576870931381,
+      "rotation_change_deg": 1.062244143014191
+    },
+    "old_fit_rms_mm": 6.086356422410038,
+    "new_fit_rms_mm": 6.026265836279644,
+    "old_held_out_rms_mm": 6.757502095241019,
+    "new_held_out_rms_mm": 8.091711885232428,
+    "old_independent_9point_rms_mm": 10.908271337468829,
+    "new_independent_9point_rms_mm": 11.286354356535758,
+    "new_independent_9point_max_mm": 22.43015673089525
+  },
+  "pair": {
+    "change": {
+      "translation_delta_m": [
+        -5.54160188850775e-05,
+        7.074672367070323e-05,
+        0.0001894488726087995
+      ],
+      "position_change_mm": 0.2096828781564085,
+      "rotation_change_deg": 0.023007068144334612
+    },
+    "old_validation": {
+      "status": "HELD_OUT_REPORT",
+      "views": [
+        {
+          "pair": "pair_012",
+          "board_center_error_mm": 0.8949843430587019,
+          "rotation_error_deg": 1.575862844370717,
+          "cross_projection_rms_px": 1.9855902125650529
+        },
+        {
+          "pair": "pair_013",
+          "board_center_error_mm": 0.26068844863150126,
+          "rotation_error_deg": 0.41854810223735656,
+          "cross_projection_rms_px": 1.0364406748501722
+        },
+        {
+          "pair": "pair_014",
+          "board_center_error_mm": 1.0213280893981096,
+          "rotation_error_deg": 0.6056742372700213,
+          "cross_projection_rms_px": 1.0245153169050252
+        }
+      ],
+      "center_rms_mm": 0.7983454782159806,
+      "max_center_error_mm": 1.0213280893981096,
+      "max_rotation_error_deg": 1.575862844370717,
+      "max_cross_projection_rms_px": 1.9855902125650529
+    },
+    "new_validation": {
+      "status": "HELD_OUT_REPORT",
+      "views": [
+        {
+          "pair": "pair_012",
+          "board_center_error_mm": 0.9126134925163552,
+          "rotation_error_deg": 1.5798295618454667,
+          "cross_projection_rms_px": 1.8974548962667315
+        },
+        {
+          "pair": "pair_013",
+          "board_center_error_mm": 0.33422266582315524,
+          "rotation_error_deg": 0.48419652925516904,
+          "cross_projection_rms_px": 0.8996059449153666
+        },
+        {
+          "pair": "pair_014",
+          "board_center_error_mm": 1.1017079689310842,
+          "rotation_error_deg": 0.6952575357335206,
+          "cross_projection_rms_px": 1.1668903773343207
+        }
+      ],
+      "center_rms_mm": 0.8481997850111908,
+      "max_center_error_mm": 1.1017079689310842,
+      "max_rotation_error_deg": 1.5798295618454667,
+      "max_cross_projection_rms_px": 1.8974548962667315
+    },
+    "new_joint_reprojection_rms_px": 0.4246996817186713
+  },
+  "urdf_assumed_torso": {
+    "old_position_m": [
+      0.10973145916888388,
+      0.021327266155500284,
+      0.2947699967652748
+    ],
+    "new_position_m": [
+      0.10980696170008263,
+      0.02138268217438536,
+      0.29458239254883645
+    ],
+    "new_mounting_flu_rpy_deg": [
+      -0.28180342635750094,
+      -10.849470497561635,
+      1.0058471226649672
+    ],
+    "change": {
+      "translation_delta_m": [
+        7.550253119874284e-05,
+        5.5416018885076634e-05,
+        -0.0001876042164383751
+      ],
+      "position_change_mm": 0.20968287815638406,
+      "rotation_change_deg": 0.023007068144334612
+    },
+    "reference_verified": false
+  },
+  "methods_difference_before": {
+    "translation_delta_m": [
+      0.03657067883196219,
+      -0.02418874780303571,
+      -0.010699009183851249
+    ],
+    "position_change_mm": 45.13290227788953,
+    "rotation_change_deg": 7.142561909512153
+  },
+  "methods_difference_after": {
+    "translation_delta_m": [
+      0.03946393909925809,
+      -0.028026191286155876,
+      -0.01682409964039494
+    ],
+    "position_change_mm": 51.24373343100684,
+    "rotation_change_deg": 8.010821039066672
+  },
+  "note": "Compare candidate differences, not ground-truth errors. Hand-tip and original RGB-to-torso assumptions remain unverified. Independent splits unchanged; no samples dropped."
+}

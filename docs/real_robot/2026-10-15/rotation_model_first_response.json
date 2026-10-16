@@ -1,0 +1,40 @@
+{
+  "schema_version": 2,
+  "response_type": "end2end_decision",
+  "session_id": "camera_probe_403ba54fe04a4e4ba20b8d7dae4cd617",
+  "observation_id": "camera_probe_403ba54fe04a4e4ba20b8d7dae4cd617_decision_000",
+  "action": "NAVIGATE",
+  "direction": "forward",
+  "target": "黑色的行李箱",
+  "bbox_2d": [
+    181,
+    171,
+    238,
+    447
+  ],
+  "waypoint": null,
+  "progress_analysis": "向前走，可以看到一个半透明的玻璃门，门后可能有黑色的行李箱。",
+  "reasoning": "根据当前的FORWARD视图，门后区域看起来像是通往另一个房间或区域的方向。门后可能有黑色的行李箱，因此选择向前移动是最合理的下一步。",
+  "session_status": "ACTIVE",
+  "stop_phase": null,
+  "stage_plan_id": "sha256:3fb1563ca8e2c90a7e0f64461dca404589afe1a44da255345cfff5314912e90d",
+  "stage_plan_status": "READY",
+  "stage_progress": {
+    "stage_plan_id": "sha256:3fb1563ca8e2c90a7e0f64461dca404589afe1a44da255345cfff5314912e90d",
+    "stage_total": 2,
+    "stage_completed": 0,
+    "stage_id": 0,
+    "completed_stage_ids": [],
+    "current_stage": "向前走",
+    "evidence_of_completion": [],
+    "final_target_visible": false,
+    "parse_success": true,
+    "parse_error": null,
+    "decision_index": 0,
+    "role_call_index": 22,
+    "role_seed": null,
+    "image_count": 4,
+    "model_backend": "local_navigator_shadow"
+  },
+  "stop_gate": null
+}

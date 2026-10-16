@@ -422,7 +422,7 @@ def main() -> int:
     parser.add_argument("--execute", action="store_true", help="required to send real motion")
     parser.add_argument("--capture-panorama", action="store_true", help="imu75_panorama停稳后保存真实RGB-D")
     parser.add_argument("--camera-config", type=Path, default=Path(__file__).resolve().parent /
-                        "camera_d435i/network_camera_d415_local.json")
+                        "camera_d415/network_camera_d415_local.json")
     parser.add_argument("--output", type=Path, help="采图输出目录，必须是新目录")
     camera_mount = parser.add_mutually_exclusive_group()
     camera_mount.add_argument("--camera-on-desk", action="store_true", help="相机未随机器人转动，仅验证采集时序")

@@ -1,0 +1,234 @@
+{
+  "status": "FIXED_CANDIDATE_EVALUATED_NOT_AUTO_APPROVED",
+  "refitted": false,
+  "count": 9,
+  "rms_m": 0.011286354356535758,
+  "max_m": 0.02243015673089525,
+  "mean_residual_torso_m": [
+    -0.002019519328374581,
+    7.41384876693461e-05,
+    -0.006059160528633058
+  ],
+  "T_torso_camera": [
+    [
+      -0.037229592010458196,
+      0.06973796247297863,
+      0.9968703898044383,
+      0.07034302260082453
+    ],
+    [
+      -0.9984076356091444,
+      0.03971124119794574,
+      -0.04006507805905235,
+      0.049408873460541236
+    ],
+    [
+      -0.04238101740277244,
+      -0.9967746154034199,
+      0.06814848091681731,
+      0.3114064921892314
+    ],
+    [
+      0.0,
+      0.0,
+      0.0,
+      1.0
+    ]
+  ],
+  "model_tip_measured": false,
+  "points": [
+    {
+      "marker_id": 14,
+      "original_role": "fit",
+      "predicted_torso_m": [
+        0.46408188745053125,
+        0.18932249159958334,
+        0.35917523479197255
+      ],
+      "fk_tip_torso_m": [
+        0.46096917041995855,
+        0.1883648290202824,
+        0.3600757775684223
+      ],
+      "residual_torso_m": [
+        0.003112717030572698,
+        0.0009576625793009386,
+        -0.000900542776449742
+      ],
+      "error_m": 0.0033789202743519198,
+      "image": "/home/yile/projects/g1_camera_sdk/d415_live_extrinsics_03/contact_01_id14.png"
+    },
+    {
+      "marker_id": 7,
+      "original_role": "fit",
+      "predicted_torso_m": [
+        0.47001706210479316,
+        0.1261044546190498,
+        0.39525172257599905
+      ],
+      "fk_tip_torso_m": [
+        0.4688315866869218,
+        0.12978748713794153,
+        0.3963264126167542
+      ],
+      "residual_torso_m": [
+        0.00118547541787134,
+        -0.003683032518891738,
+        -0.0010746900407551663
+      ],
+      "error_m": 0.00401559948018843,
+      "image": "/home/yile/projects/g1_camera_sdk/d415_live_extrinsics_03/contact_02_id7.png"
+    },
+    {
+      "marker_id": 13,
+      "original_role": "fit",
+      "predicted_torso_m": [
+        0.4717129940456299,
+        0.13582488209392957,
+        0.39930516393914883
+      ],
+      "fk_tip_torso_m": [
+        0.46927166296876555,
+        0.14096670736473788,
+        0.4031475836145082
+      ],
+      "residual_torso_m": [
+        0.0024413310768643393,
+        -0.005141825270808309,
+        -0.0038424196753593653
+      ],
+      "error_m": 0.00686750708073718,
+      "image": "/home/yile/projects/g1_camera_sdk/d415_live_extrinsics_03/contact_03_id13.png"
+    },
+    {
+      "marker_id": 19,
+      "original_role": "fit",
+      "predicted_torso_m": [
+        0.4743884078507515,
+        0.11770625782669707,
+        0.3994228712472101
+      ],
+      "fk_tip_torso_m": [
+        0.4695287752536166,
+        0.11504922787795197,
+        0.4015052543298495
+      ],
+      "residual_torso_m": [
+        0.0048596325971349,
+        0.0026570299487451016,
+        -0.0020823830826394163
+      ],
+      "error_m": 0.005917107099802007,
+      "image": "/home/yile/projects/g1_camera_sdk/d415_live_extrinsics_03/contact_04_id19.png"
+    },
+    {
+      "marker_id": 8,
+      "original_role": "fit",
+      "predicted_torso_m": [
+        0.46897441359097014,
+        0.1300326953005067,
+        0.3513660422707934
+      ],
+      "fk_tip_torso_m": [
+        0.4649920703937777,
+        0.12336403564375525,
+        0.3520369280481732
+      ],
+      "residual_torso_m": [
+        0.003982343197192428,
+        0.006668659656751452,
+        -0.0006708857773798371
+      ],
+      "error_m": 0.007796163587566628,
+      "image": "/home/yile/projects/g1_camera_sdk/d415_live_extrinsics_03/contact_05_id8.png"
+    },
+    {
+      "marker_id": 20,
+      "original_role": "fit",
+      "predicted_torso_m": [
+        0.45486497597039127,
+        0.07659816704804207,
+        0.33949162237941877
+      ],
+      "fk_tip_torso_m": [
+        0.4636215079080761,
+        0.08111890579470213,
+        0.359641014444225
+      ],
+      "residual_torso_m": [
+        -0.00875653193768483,
+        -0.0045207387466600635,
+        -0.02014939206480626
+      ],
+      "error_m": 0.02243015673089525,
+      "image": "/home/yile/projects/g1_camera_sdk/d415_live_extrinsics_03/contact_06_id20.png"
+    },
+    {
+      "marker_id": 9,
+      "original_role": "check",
+      "predicted_torso_m": [
+        0.4240228144118853,
+        0.16435766600529378,
+        0.2891042755552604
+      ],
+      "fk_tip_torso_m": [
+        0.4310652667044966,
+        0.16454488537389583,
+        0.2973771124652602
+      ],
+      "residual_torso_m": [
+        -0.007042452292611301,
+        -0.00018721936860205401,
+        -0.008272836909999803
+      ],
+      "error_m": 0.010866048772444426,
+      "image": "/home/yile/projects/g1_camera_sdk/d415_live_extrinsics_03/contact_07_id9.png"
+    },
+    {
+      "marker_id": 15,
+      "original_role": "check",
+      "predicted_torso_m": [
+        0.41946064676444955,
+        0.12206676953038322,
+        0.2901843715870913
+      ],
+      "fk_tip_torso_m": [
+        0.427576570433255,
+        0.12399760608233842,
+        0.2985783021530946
+      ],
+      "residual_torso_m": [
+        -0.008115923668805425,
+        -0.001930836551955209,
+        -0.008393930566003294
+      ],
+      "error_m": 0.011834458886452171,
+      "image": "/home/yile/projects/g1_camera_sdk/d415_live_extrinsics_03/contact_08_id15.png"
+    },
+    {
+      "marker_id": 21,
+      "original_role": "check",
+      "predicted_torso_m": [
+        0.4171698521642887,
+        0.104706157024301,
+        0.28764763628316503
+      ],
+      "fk_tip_torso_m": [
+        0.4270121175401941,
+        0.098858610363157,
+        0.2967930001474697
+      ],
+      "residual_torso_m": [
+        -0.009842265375905379,
+        0.005847546661143996,
+        -0.009145363864304645
+      ],
+      "error_m": 0.01465270179504556,
+      "image": "/home/yile/projects/g1_camera_sdk/d415_live_extrinsics_03/contact_09_id21.png"
+    }
+  ],
+  "notes": "Every new contact is a validation point, including those labelled fit by the sampler. The candidate is unchanged. Same board/kinematics/model tip can share systematic errors; confirm actual finger offset and validate at other board poses/distances. Not applied to VLN.",
+  "candidate_path": "/home/yile/projects/g1_camera_sdk/d415_live_extrinsics_02_reprocessed_20261013/extrinsics_candidate.json",
+  "candidate_sha256": "72892df86b302449e8182f99a17477afacd4a3f2797b5671b5016c38eda351a0",
+  "validation_session": "/home/yile/projects/g1_camera_sdk/d415_live_extrinsics_03_reprocessed_20261013"
+}

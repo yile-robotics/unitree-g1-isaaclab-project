@@ -15,7 +15,7 @@ import uuid
 import cv2
 import numpy as np
 
-from camera_d435i.network_camera import create_camera
+from camera_d415.network_camera import create_camera
 from unified_vln.model_client import CombinedModelClient
 from unified_vln.session_client import G3SessionClient
 from unified_vln.types import DIRECTION_ORDER, PanoramaBundle, ViewFrame
@@ -164,7 +164,7 @@ def request_decision(bundle: PanoramaBundle, output: Path, instruction: str,
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--camera-config", type=Path,
-                        default=ROOT / "camera_d435i/network_camera_d415_local.json")
+                        default=ROOT / "camera_d415/network_camera_d415_local.json")
     parser.add_argument("--panorama-dir", type=Path, help="重放本入口已保存的完整四方向目录，不连接相机")
     parser.add_argument("--capture-only", action="store_true", help="只采集保存，不连接模型")
     parser.add_argument("--headless", action="store_true", help="不用窗口，终端Enter确认拍摄")

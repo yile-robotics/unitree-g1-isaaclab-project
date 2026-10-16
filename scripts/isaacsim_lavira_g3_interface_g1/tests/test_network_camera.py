@@ -17,7 +17,7 @@ import unittest
 import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from camera_d435i.network_camera import NetworkCamera
+from camera_d415.network_camera import NetworkCamera
 
 
 def fixture(sequence=1):
@@ -97,7 +97,7 @@ class NetworkCameraTests(unittest.TestCase):
                 config = Path(folder) / "camera.json"
                 config.write_text(json.dumps(server.config))
                 # 使用正式runner的 MODULE:FUNCTION 调用约定，但不加载规划/DDS依赖。
-                module_name, factory_name = "camera_d435i.network_camera:create_camera".split(":")
+                module_name, factory_name = "camera_d415.network_camera:create_camera".split(":")
                 camera = getattr(importlib.import_module(module_name), factory_name)(config)
                 first = camera.capture_forward(12, 5.0)
                 second = camera.capture_forward(13, 6.0)

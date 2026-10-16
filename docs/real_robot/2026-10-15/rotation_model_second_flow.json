@@ -1,0 +1,16 @@
+{
+  "scope": "robot_rotation_then_one_model_decision",
+  "instruction": "向前走到一个黑色的行李箱前",
+  "model_url": "http://127.0.0.1:18765/v1/lavira/decision",
+  "panorama_dir": "/home/yile/projects/unitree-g1-isaaclab-project/outputs/d415_rotation_model/run_20261015_160933_f63564c8/panorama",
+  "model_output_dir": "/home/yile/projects/unitree-g1-isaaclab-project/outputs/d415_rotation_model/run_20261015_160933_f63564c8/model",
+  "iplanner_called": false,
+  "model_action_executed": false,
+  "rotation_process_started": true,
+  "rotation_capture_completed": true,
+  "model_decision_started": true,
+  "total_slam_turn_deg": 349.53356605871807,
+  "status": "PASS",
+  "decision_action": "NAVIGATE",
+  "decision_direction": "forward"
+}

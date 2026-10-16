@@ -33,9 +33,9 @@ class NetworkCamera:
         unknown = set(config) - allowed
         if unknown:
             raise ValueError(f"Unknown camera settings: {sorted(unknown)}")
-        self.host = str(config.get("host", "192.168.123.164"))
+        self.host = str(config.get("host", "127.0.0.1"))
         self.port = int(config.get("port", 8765))
-        self.serial = str(config.get("serial", "344422072128"))
+        self.serial = str(config.get("serial", "211222063932"))
         self.width = int(config.get("width", 640))
         self.height = int(config.get("height", 480))
         if not 1 <= self.port <= 65535 or not 1 <= self.width <= 4096 or not 1 <= self.height <= 4096:
@@ -178,13 +178,13 @@ class NetworkCamera:
 
 
 def create_camera(config_path: Path) -> NetworkCamera:
-    """--camera-factory camera_d435i.network_camera:create_camera 的入口。"""
+    """--camera-factory camera_d415.network_camera:create_camera 的入口。"""
     return NetworkCamera(json.loads(Path(config_path).read_text(encoding="utf-8")))
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="只读取/预览机器人 RGB-D，不调用机器人运动服务")
-    parser.add_argument("--config", type=Path, default=Path(__file__).with_name("network_camera.json"))
+    parser.add_argument("--config", type=Path, default=Path(__file__).with_name("network_camera_d415_local.json"))
     parser.add_argument("--seconds", type=float, default=30.0, help="接收时间，默认30秒")
     parser.add_argument("--headless", action="store_true", help="只输出帧/深度/延迟，不开GUI")
     parser.add_argument("--output", type=Path, help="可选：保存最后一组和统计，目录必须不存在")

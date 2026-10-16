@@ -4,6 +4,19 @@ Clean external Isaac Lab project for training a Unitree G1 lock-waist standing p
 
 The first target is simple: load `g1_29dof_lock_waist_rev_1_0`, stand on flat ground, and keep the code separate from the main IsaacLab repository. Later stages can add velocity walking and VLA/navigation on top of the low-level policy.
 
+## 真机相机、标定与 VLN 测试
+
+当前真机使用胸前 D415。已跑通旋转采集、一轮模型决策及本机 iPlanner 实时路径预览；
+避障净空、可靠安装外参和完整真机导航仍待验证，不能把“返回路径”视为“避障成功”。
+
+- [2026-10-13、10-15 工作记录与结果索引](docs/real_robot/README.md)：包含可直接查看的图片、候选外参及原始结果摘要。
+- [真机测试总记录](scripts/isaacsim_lavira_g3_interface_g1/README_G1_REAL_TEST.md)：运控、SLAM、相机与当前完成范围。
+- [旋转一圈、采图后请求模型](scripts/isaacsim_lavira_g3_interface_g1/README_ROTATION_CAPTURE.md)。
+- [实时相机与 iPlanner 规划观察窗口](scripts/isaacsim_lavira_g3_interface_g1/README_IPLANNER_VIEWER.md)：只显示，不发送机器人命令。
+- [手触碰外参标定](scripts/camera_extrinsics/README.md)与[独立双相机标定](scripts/camera_pair_extrinsics/README.md)。
+
+以下原有 Isaac Lab 训练说明保留；本次工作没有修改仿真控制流程。
+
 ## Layout
 
 ```text

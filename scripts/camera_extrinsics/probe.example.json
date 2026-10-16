@@ -1,0 +1,7 @@
+{
+  "probe_link": "left_wrist_yaw_link",
+  "tip_in_link_m": null,
+  "tip_measured": false,
+  "mount_on_torso_confirmed": false,
+  "notes": "Measure the rigid probe tip in the chosen URDF wrist link frame, NOT from the hand surface. No assumed zero offset."
+}

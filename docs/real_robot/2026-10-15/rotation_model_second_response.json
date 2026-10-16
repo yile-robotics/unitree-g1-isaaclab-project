@@ -1,0 +1,40 @@
+{
+  "schema_version": 2,
+  "response_type": "end2end_decision",
+  "session_id": "camera_probe_a2f8587308b24bc292bacf813d015e24",
+  "observation_id": "camera_probe_a2f8587308b24bc292bacf813d015e24_decision_000",
+  "action": "NAVIGATE",
+  "direction": "forward",
+  "target": "黑色的行李箱",
+  "bbox_2d": [
+    274,
+    256,
+    440,
+    476
+  ],
+  "waypoint": null,
+  "progress_analysis": "当前视角中出现了一个黑色的行李箱，符合任务目标。",
+  "reasoning": "根据任务要求，需要向前走到一个黑色的行李箱前。在FORWARD视图中，可以看到一个黑色的行李箱，因此选择向前移动以接近目标。",
+  "session_status": "ACTIVE",
+  "stop_phase": null,
+  "stage_plan_id": "sha256:9ff6e572ba7d7e5e795e4553e75bc370bcd885108f5cb6f9d9cee8f3d986e20c",
+  "stage_plan_status": "READY",
+  "stage_progress": {
+    "stage_plan_id": null,
+    "stage_total": null,
+    "stage_completed": null,
+    "stage_id": null,
+    "completed_stage_ids": [],
+    "current_stage": null,
+    "evidence_of_completion": [],
+    "final_target_visible": null,
+    "parse_success": false,
+    "parse_error": "current_stage must be COMPLETED after the final stage",
+    "decision_index": 0,
+    "role_call_index": 23,
+    "role_seed": null,
+    "image_count": 4,
+    "model_backend": "local_navigator_shadow"
+  },
+  "stop_gate": null
+}

@@ -1,0 +1,64 @@
+{
+  "status": "ID_LAYOUT_CONFIRMED_CORNER_MAPPING_PENDING",
+  "measured_date": "2026-10-09",
+  "marker_outer_side_m": 0.055,
+  "reported_white_gap_m": 0.017,
+  "derived_center_spacing_m": 0.072,
+  "horizontal_vertical_gap_equality_confirmed": true,
+  "marker_gap_x_m": 0.017,
+  "marker_gap_y_m": 0.017,
+  "dictionary": "APRILTAG_36h11",
+  "marker_border_bits": 2,
+  "marker_ids_by_position": [
+    [
+      0,
+      6,
+      12,
+      18,
+      24,
+      30
+    ],
+    [
+      1,
+      7,
+      13,
+      19,
+      25,
+      31
+    ],
+    [
+      2,
+      8,
+      14,
+      20,
+      26,
+      32
+    ],
+    [
+      3,
+      9,
+      15,
+      21,
+      27,
+      33
+    ],
+    [
+      4,
+      10,
+      16,
+      22,
+      28,
+      34
+    ],
+    [
+      5,
+      11,
+      17,
+      23,
+      29,
+      35
+    ]
+  ],
+  "notes": "User measured marker outer sides 55 mm and horizontal/vertical gaps 17 mm. All 36 IDs were independently decoded in at least two distinct RGB frames and agreed with the 6x6 column-major layout on 2026-10-09. Marker corner orientation and metric pose remain to be validated; this is not a camera-body calibration.",
+  "layout_evidence_path": "/home/yile/projects/g1_camera_sdk/marker_layout_verify_01/board_layout_confirmed.json"
+}

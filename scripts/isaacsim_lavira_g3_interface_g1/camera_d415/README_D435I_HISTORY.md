@@ -1,4 +1,4 @@
-# G1 D435i：取图、实时传输与 VLN 接口
+# 历史记录：机器人内置 D435i（2026-10-02）
 
 D415直接连接笔记本的测试和命令见[README_D415_LOCAL.md](README_D415_LOCAL.md)。
 
@@ -30,15 +30,15 @@ D435i → 机器人官方 C++ SDK → `g1_d435i_stream` → TCP → 笔记本 `N
 
 ```bash
 cd /home/yile/projects/unitree-g1-isaaclab-project
-scp scripts/isaacsim_lavira_g3_interface_g1/camera_d435i/{stream.cpp,capture.cpp,sensor_settings.hpp,CMakeLists.txt} \
-  unitree@192.168.123.164:/home/unitree/g1_camera_sdk/camera_d435i/
+scp scripts/isaacsim_lavira_g3_interface_g1/camera_d415/{stream.cpp,capture.cpp,sensor_settings.hpp,CMakeLists.txt} \
+  unitree@192.168.123.164:/home/unitree/g1_camera_sdk/camera_d415/
 ssh unitree@192.168.123.164
 ```
 
 ROS 选择提示输入 `1`。在**机器人 SSH 终端**编译；已有 SDK 无需重编：
 
 ```bash
-cmake -S /home/unitree/g1_camera_sdk/camera_d435i \
+cmake -S /home/unitree/g1_camera_sdk/camera_d415 \
   -B /home/unitree/g1_camera_sdk/local/build-probe-aarch64 \
   -DCMAKE_BUILD_TYPE=Release \
   -DCMAKE_PREFIX_PATH=/home/unitree/g1_camera_sdk/local/install-aarch64
@@ -65,7 +65,7 @@ cmake --build /home/unitree/g1_camera_sdk/local/build-probe-aarch64 \
 ```bash
 cd /home/yile/projects/unitree-g1-isaaclab-project
 source ../.venvs/unitree_g1/bin/activate
-python scripts/isaacsim_lavira_g3_interface_g1/camera_d435i/network_camera.py \
+python scripts/isaacsim_lavira_g3_interface_g1/camera_d415/network_camera.py \
   --seconds 60 --output /home/yile/projects/rgbd_stream_settings_test_02
 ```
 
@@ -106,7 +106,7 @@ python scripts/isaacsim_lavira_g3_interface_g1/camera_d435i/network_camera.py \
 ```bash
 scp -r unitree@192.168.123.164:/home/unitree/g1_camera_sdk/rgbd_test_02 /home/yile/projects/
 /home/yile/projects/.venvs/g1_camera_analysis/bin/python \
-  /home/yile/projects/unitree-g1-isaaclab-project/scripts/isaacsim_lavira_g3_interface_g1/camera_d435i/inspect_capture.py \
+  /home/yile/projects/unitree-g1-isaaclab-project/scripts/isaacsim_lavira_g3_interface_g1/camera_d415/inspect_capture.py \
   /home/yile/projects/rgbd_test_02
 xdg-open /home/yile/projects/rgbd_test_02/rgbd_preview.png
 ```
@@ -144,8 +144,8 @@ xdg-open /home/yile/projects/rgbd_test_02/rgbd_preview.png
 `run_g1_real.py`的相机参数（不是完整启动命令）：
 
 ```text
---camera-factory camera_d435i.network_camera:create_camera
---camera-config scripts/isaacsim_lavira_g3_interface_g1/camera_d435i/network_camera.json
+--camera-factory camera_d415.network_camera:create_camera
+--camera-config scripts/isaacsim_lavira_g3_interface_g1/camera_d415/network_camera.json
 ```
 
 `capture_forward(sim_step, timestamp)`返回 `ViewFrame`：RGB uint8、同尺寸float32米制深度、设备K、递增帧号及 `forward` 方向。服务收到 `NEXT` 后等待随后采集的一组图；超时、断流、重复帧、全零深度或标定错误会关闭连接并抛异常。
@@ -167,13 +167,13 @@ xdg-open /home/yile/projects/rgbd_test_02/rgbd_preview.png
 ```bash
 ssh unitree@192.168.123.164 'mkdir -p /home/unitree/g1_camera_sdk'
 scp -r /home/yile/projects/librealsense-v2.54.1 unitree@192.168.123.164:/home/unitree/g1_camera_sdk/
-scp -r /home/yile/projects/unitree-g1-isaaclab-project/scripts/isaacsim_lavira_g3_interface_g1/camera_d435i unitree@192.168.123.164:/home/unitree/g1_camera_sdk/
+scp -r /home/yile/projects/unitree-g1-isaaclab-project/scripts/isaacsim_lavira_g3_interface_g1/camera_d415 unitree@192.168.123.164:/home/unitree/g1_camera_sdk/
 ```
 
 在机器人执行；缺依赖时再安装git、build-essential、cmake、pkg-config、libusb-1.0-0-dev、libudev-dev、libssl-dev：
 
 ```bash
-bash /home/unitree/g1_camera_sdk/camera_d435i/build_sdk.sh \
+bash /home/unitree/g1_camera_sdk/camera_d415/build_sdk.sh \
   /home/unitree/g1_camera_sdk/librealsense-v2.54.1 \
   /home/unitree/g1_camera_sdk/local
 ```

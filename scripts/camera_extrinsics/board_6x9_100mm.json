@@ -1,0 +1,9 @@
+{
+  "square_columns": 6,
+  "square_rows": 9,
+  "inner_corner_columns": 5,
+  "inner_corner_rows": 8,
+  "square_size_m": 0.1,
+  "orientation": "Viewed from camera-facing side, assume 6 squares across and 9 down. Mark physical inner-corner origin; swap columns/rows if board rotated.",
+  "notes": "User supplied dimensions. Torn corners must not be selected; remaining surface must be flat."
+}

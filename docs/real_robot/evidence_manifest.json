@@ -1,0 +1,95 @@
+{
+  "note": "Selected original result copies; no model weights or complete raw datasets. Paths identify local acquisition sources.",
+  "files": [
+    {
+      "file": "2026-10-13/calibration_comparison.json",
+      "source_local_path": "/home/yile/projects/g1_camera_sdk/board_geometry_audit_20261013/reprocessed_comparison.json",
+      "sha256": "13e2e5de7fb397c079b65886abdb0d79a3ef5d377573dc5ccb73761dc7013e62",
+      "bytes": 4700
+    },
+    {
+      "file": "2026-10-13/hand_candidate.json",
+      "source_local_path": "/home/yile/projects/g1_camera_sdk/d415_live_extrinsics_02_reprocessed_20261013/extrinsics_candidate.json",
+      "sha256": "72892df86b302449e8182f99a17477afacd4a3f2797b5671b5016c38eda351a0",
+      "bytes": 8608
+    },
+    {
+      "file": "2026-10-13/hand_independent_validation.json",
+      "source_local_path": "/home/yile/projects/g1_camera_sdk/d415_live_extrinsics_03_reprocessed_20261013/validation_report.json",
+      "sha256": "651c483bf36b7c52760c7f915d180b065a8489e9d01fe45684dde555201976df",
+      "bytes": 6502
+    },
+    {
+      "file": "2026-10-13/pair_relative_candidate.json",
+      "source_local_path": "/home/yile/projects/g1_camera_sdk/dual_camera_session_02/reprocessed_20261013/relative_candidate.json",
+      "sha256": "33ac0c80bbd8f433f3ca687979464679000f3ad10d7060182aaa80ab35f3624d",
+      "bytes": 3871
+    },
+    {
+      "file": "2026-10-13/torso_urdf_assumed_candidate.json",
+      "source_local_path": "/home/yile/projects/g1_camera_sdk/dual_camera_session_02/reprocessed_20261013/torso_urdf_assumed_candidate.json",
+      "sha256": "2b98f4cd8253d18b261770a1105b77c71de373829fa035d5ed13d626afa242a0",
+      "bytes": 2712
+    },
+    {
+      "file": "2026-10-15/panorama_overview.jpg",
+      "source_local_path": "/home/yile/projects/unitree-g1-isaaclab-project/outputs/d415_rotation_model/run_20261015_155020_5347141f/panorama_overview.jpg",
+      "sha256": "8acd6f5371ca698336152d3ae1008739abb1e467d3aeef290b0195e929f94588",
+      "bytes": 523789
+    },
+    {
+      "file": "2026-10-15/rotation_model_first_flow.json",
+      "source_local_path": "/home/yile/projects/unitree-g1-isaaclab-project/outputs/d415_rotation_model/run_20261015_155020_5347141f/flow_report.json",
+      "sha256": "163640583def85baf32bb6adbf9d608c6afdc8bb320bef49fffcacc5040d6311",
+      "bytes": 750
+    },
+    {
+      "file": "2026-10-15/rotation_model_first_response.json",
+      "source_local_path": "/home/yile/projects/unitree-g1-isaaclab-project/outputs/d415_rotation_model/run_20261015_155020_5347141f/model/response.json",
+      "sha256": "0efaf51798089409872fabe8a59e2463e0591f8db430ebeb44742b68744640d0",
+      "bytes": 1412
+    },
+    {
+      "file": "2026-10-15/rotation_model_second_flow.json",
+      "source_local_path": "/home/yile/projects/unitree-g1-isaaclab-project/outputs/d415_rotation_model/run_20261015_160933_f63564c8/flow_report.json",
+      "sha256": "da5f13866233e7fdec927a72e91d3678dbf688c3140846086a554fe4ca7c6c40",
+      "bytes": 750
+    },
+    {
+      "file": "2026-10-15/rotation_model_second_response.json",
+      "source_local_path": "/home/yile/projects/unitree-g1-isaaclab-project/outputs/d415_rotation_model/run_20261015_160933_f63564c8/model/response.json",
+      "sha256": "fd95e51875a22f0a7f0639c603af1b9b4904bdbd62e3c3b40b7d3cd3242956fd",
+      "bytes": 1363
+    },
+    {
+      "file": "2026-10-15/iplanner_recorded_preview.png",
+      "source_local_path": "/home/yile/projects/unitree-g1-isaaclab-project/outputs/iplanner_viewer/replay_20261015_01/preview.png",
+      "sha256": "13c76d474946e4774f6d2b871d94c1bf06924250a62c9824cea1ab5fe9e751aa",
+      "bytes": 760817
+    },
+    {
+      "file": "2026-10-15/iplanner_recorded_plan.json",
+      "source_local_path": "/home/yile/projects/unitree-g1-isaaclab-project/outputs/iplanner_viewer/replay_20261015_01/latest_plan.json",
+      "sha256": "e0178b7d4312c7514024cd749462869d188c710b662c23ea5504d5ddfb0de44e",
+      "bytes": 5882
+    },
+    {
+      "file": "2026-10-15/obstacle_path_review.png",
+      "source_local_path": "/home/yile/projects/unitree-g1-isaaclab-project/outputs/iplanner_viewer/obstacle_review_20261015_01/obstacle_path_review.png",
+      "sha256": "62045e16672709fae19f90b850ef10b12945beb8c77783839c0f5d0c56b9240d",
+      "bytes": 501502
+    },
+    {
+      "file": "2026-10-15/obstacle_analysis.json",
+      "source_local_path": "/home/yile/projects/unitree-g1-isaaclab-project/outputs/iplanner_viewer/obstacle_review_20261015_01/analysis_report.json",
+      "sha256": "29e4e973ed3ced44b222931a9d576ade524c2010d921dfdc6fb8a8d5ed1872e2",
+      "bytes": 32092
+    },
+    {
+      "file": "2026-10-15/torso_live_fk.json",
+      "source_local_path": "/home/yile/projects/g1_camera_sdk/ros_tf_check_20261015_01/live_torso_fk.json",
+      "sha256": "05c704723d23eaf7eea0fe4950ed57b75a197596930267835365d4115decaeb4",
+      "bytes": 1850
+    }
+  ]
+}

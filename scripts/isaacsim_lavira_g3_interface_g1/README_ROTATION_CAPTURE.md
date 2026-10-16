@@ -7,6 +7,45 @@
 
 拍摄顺序为初始前方、第一段后的左方、第二段后的后方、第三段后的右方，第四段转回前方后额外保存一张回正图。四段自动衔接，无需按Enter。本入口不连接模型，不执行前进导航。
 
+## 胸前 D415：旋转一圈后请求一次模型决策
+
+`g1_rotation_model_probe.py` 串联现有旋转采集探针和 G3 模型客户端。先检查模型健康接口，
+再采集初始前方、左方、后方、右方和回正图；四段完整完成且停车清理后，上传前四张 RGB
+请求一次决策。回正图保留作检查。此入口不调用 iPlanner、不执行模型返回的导航动作，
+不读取或应用安装外参进行世界目标投影，也不是正式导航 Episode。
+
+先按下文启动相机、RViz 和 SLAM 重定位，并保持 SSH 模型隧道运行：
+
+```bash
+ssh -o ExitOnForwardFailure=yes -o ServerAliveInterval=30 -o ServerAliveCountMax=3 \
+  -N -L 127.0.0.1:18765:127.0.0.1:8765 wangchu@131.159.60.188
+```
+
+确认 RViz 重定位正确后，在笔记本单独终端执行：
+
+```bash
+cd /home/yile/projects/unitree-g1-isaaclab-project
+source /home/yile/projects/.venvs/unitree_g1/bin/activate
+python scripts/isaacsim_lavira_g3_interface_g1/g1_rotation_model_probe.py \
+  --network-interface enxf8e43bbea486 \
+  --instruction "向前走到一个黑色的行李箱前" \
+  --execute
+```
+
+默认自动生成新输出目录 `outputs/d415_rotation_model/run_时间_随机编号/`，也可用 `--output`
+指定新目录。`panorama/` 保存五组 RGB-D、内参、采图前后位姿和旋转清单；`model/` 保存
+请求、原始响应、会话记录和模型有 bbox 时的 `decision_bbox.png`；根目录 `flow_report.json`
+区分旋转是否完整完成、模型请求是否开始，以及实际失败阶段。
+
+Ctrl+C 复用旋转探针的停车清理；不完整采图不上传模型，即使旧探针中断时返回退出码 0。
+模型失败时保留全景，可用 `g1_camera_model_probe.py --panorama-dir .../panorama` 单独重试，
+无需重新旋转。G3 决策会话结束为 CANCELLED，表示没有执行模型动作，不代表旋转采集失败。
+
+2026-10-15：新增串联入口，6 项离线测试检查模型断线时不开始旋转、先采图后单次决策、
+中断/失败不上传以及模型失败保留图像。两轮已现场完成采图和一次模型请求，SLAM合计
+358.194°与349.534°。第一轮目标框有误，第二轮阶段进度解析失败；流程完成不等于任务成功。
+USB断线的失败尝试也保留。[当日图像和原始响应摘要](../../docs/real_robot/2026-10-15/README.md)。
+
 ## 1. 保持相机服务运行
 
 D415仍通过USB连接笔记本。同一时间只运行一个取图客户端，先退出旧的预览或手动采集程序。相机服务已运行时直接使用，勿重复启动；未运行时在笔记本终端执行：

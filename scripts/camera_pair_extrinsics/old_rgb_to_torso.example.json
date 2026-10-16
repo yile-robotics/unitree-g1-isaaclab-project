@@ -1,0 +1,9 @@
+{
+  "verified": false,
+  "parent_frame": "torso_link",
+  "child_frame": "old_rgb_optical",
+  "old_camera_serial": "344422072128",
+  "T_parent_child": null,
+  "source": "UNCONFIRMED. Supply a verified factory/TF/measurement reference, including RGB optical origin and axes.",
+  "note": "The URDF torso_link -> d435_link transform alone is insufficient: d435_link is not established as the RGB optical frame. Do not fill this from the hand-touch candidate."
+}
