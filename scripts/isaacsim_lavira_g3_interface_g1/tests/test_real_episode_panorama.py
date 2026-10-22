@@ -6,6 +6,7 @@ import sys
 import tempfile
 from types import SimpleNamespace
 import unittest
+from unittest.mock import patch
 
 import numpy as np
 
@@ -18,6 +19,115 @@ from unified_vln.types import DIRECTION_ORDER, ViewFrame
 
 
 class RealPanoramaTest(unittest.TestCase):
+    def test_real_decision_artifact_records_actual_selected_projection(self):
+        from unified_vln.types import PanoramaBundle
+        from test_real_decision_artifacts import frame, response
+        with tempfile.TemporaryDirectory() as tmp:
+            episode,_,_=self.fixture(output=Path(tmp))
+            panorama=PanoramaBundle(0,0,0.,{d:frame(d) for d in DIRECTION_ORDER})
+            projection={'pixel_uv':[8,18],'depth_window_xyxy_exclusive':[5,15,12,22],
+                        'depth_m':2.,'valid_depth_count':49,'goal_after_turn_xy_m':[2.,0.]}
+            def accepted(*args,**kwargs):
+                episode.pending=SimpleNamespace(panorama=panorama,
+                                               projection=SimpleNamespace(to_dict=lambda:projection))
+                return 'original_result'
+            with patch.object(LocalEndToEndEpisode,'_apply_decision_response',side_effect=accepted) as shared:
+                result=episode._apply_decision_response(panorama,decision_pose=None,response=None,raw_response=response())
+            self.assertEqual(result,'original_result');shared.assert_called_once()
+            record=json.loads((episode.output_dir/'decision_000_target.json').read_text())
+            self.assertEqual(record['selected_direction'],'left')
+            self.assertEqual(record['projection'],projection)
+            self.assertIs(record['navigation_accepted'],True)
+
+    def test_stop_artifact_keeps_original_index_when_shared_state_advances(self):
+        from unified_vln.types import PanoramaBundle
+        from test_real_decision_artifacts import frame, response
+        with tempfile.TemporaryDirectory() as tmp:
+            episode,_,_=self.fixture(output=Path(tmp))
+            panorama=PanoramaBundle(0,0,0.,{d:frame(d) for d in DIRECTION_ORDER})
+            raw={**response(),'action':'STOP','stop_phase':'STOP_PENDING'}
+            def stopped(*args,**kwargs):episode.decision_index+=1
+            with patch.object(LocalEndToEndEpisode,'_apply_decision_response',side_effect=stopped):
+                episode._apply_decision_response(panorama,decision_pose=None,response=None,raw_response=raw)
+            record=json.loads((episode.output_dir/'decision_000_target.json').read_text())
+            self.assertEqual(record['action'],'STOP')
+            self.assertIs(record['navigation_accepted'],False)
+            self.assertIsNone(record['projection'])
+            self.assertFalse((episode.output_dir/'decision_001_target.json').exists())
+
+    def test_artifact_io_failure_does_not_replace_original_navigation_exception(self):
+        from unified_vln.types import PanoramaBundle
+        from test_real_decision_artifacts import frame, response
+        with tempfile.TemporaryDirectory() as tmp:
+            episode,_,_=self.fixture(output=Path(tmp))
+            panorama=PanoramaBundle(0,0,0.,{d:frame(d) for d in DIRECTION_ORDER})
+            with patch.object(LocalEndToEndEpisode,'_apply_decision_response',side_effect=ValueError('original protocol error')):
+                with patch('unified_vln.real_decision_artifacts.save_decision_target',side_effect=OSError('disk full')):
+                    with self.assertRaisesRegex(ValueError,'original protocol error'):
+                        episode._apply_decision_response(panorama,decision_pose=None,response=None,raw_response=response())
+
+    def test_optional_decision_display_holds_zero_before_following(self):
+        episode,state,_=self.fixture()
+        episode.decision_display_s=2.
+        episode.state=EpisodeState.WAIT_EXECUTION_LOCOMOTION
+        episode.pending=SimpleNamespace(post_rotation_forward=None,response=SimpleNamespace(direction='forward'))
+        with patch.object(LocalEndToEndEpisode,'_capture_forward_and_plan'):
+            episode._capture_forward_and_plan(0,0.)
+        with patch.object(LocalEndToEndEpisode,'update') as advance:
+            held=episode.update()
+            advance.assert_not_called()
+            np.testing.assert_allclose(held.command,np.zeros(3))
+            state.now=2.1
+            episode.update()
+            advance.assert_called_once()
+
+    def test_formal_preview_reads_original_path_and_clears_on_stand(self):
+        from live_model_target import read_follow_preview
+        with tempfile.TemporaryDirectory() as tmp:
+            episode,_,_=self.fixture(output=Path(tmp))
+            path=np.array([[0.,0,0],[1.,0,0],[3.,0,0]])
+            episode.follower.start(path,np.array([3.,0]))
+            episode.pending=SimpleNamespace(projection=SimpleNamespace(goal_after_turn_xy_m=np.array([3.5,0.])))
+            episode.planner=SimpleNamespace(last_frame_id=42,request_duration_s=.04)
+            episode.state=EpisodeState.EXECUTING
+            result=SimpleNamespace(desired_mode='locomotion',command=np.array([.6,0,0]))
+            before=episode.follower._reference.path_local.copy()
+            with patch.object(LocalEndToEndEpisode,'update',return_value=result):
+                episode.update()
+            record=read_follow_preview(episode.output_dir)
+            self.assertEqual(record['execution_source'],'formal_real_episode')
+            self.assertEqual(record['source_frame_id'],42)
+            np.testing.assert_allclose(record['path_local_xyz_m'],path)
+            np.testing.assert_allclose(episode.follower._reference.path_local,before)
+            episode.state=EpisodeState.WAIT_ACTION_STAND
+            result=SimpleNamespace(desired_mode='stand',command=np.zeros(3))
+            with patch.object(LocalEndToEndEpisode,'update',return_value=result):
+                episode.update()
+            self.assertIsNone(read_follow_preview(episode.output_dir))
+
+    def test_overlay_alignment_is_written_only_after_fresh_forward_capture(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            episode, state, _ = self.fixture(output=Path(tmp))
+            episode.pending = SimpleNamespace(response=SimpleNamespace(direction='left'),
+                                              post_rotation_forward=None)
+            episode.rotation.start('left')
+            episode.rotation.update(0.)
+            state.yaw += math.radians(75)
+            state.now += .1
+            episode.rotation.update(.1)
+            state.yaw += math.radians(14)
+            state.now += episode.config.rotation_settle_s
+            episode.rotation.update(.1)
+            path = episode.output_dir/'decision_000_overlay.json'
+            with patch.object(LocalEndToEndEpisode,'_capture_forward_and_plan'):
+                episode._capture_forward_and_plan(0,0.)
+                self.assertFalse(path.exists())
+                episode.pending.post_rotation_forward = SimpleNamespace(frame_id=42)
+                episode._capture_forward_and_plan(0,0.)
+            record=json.loads(path.read_text())
+            self.assertTrue(record['view_aligned'])
+            self.assertEqual((record['direction'],record['forward_frame_id']),('left',42))
+
     def fixture(self, *, camera_failure=None, map_scale=1.0, output=None):
         state = SimpleNamespace(now=0.0, yaw=math.radians(170), command=np.zeros(3),
                                 stops=[], captures=[], starts=0, imu_live=True, map_live=True)
@@ -65,7 +175,7 @@ class RealPanoramaTest(unittest.TestCase):
                 self.state = EpisodeState.WAITING_DECISION
 
         episode = Episode(EpisodeConfig("offline_real", "go to the door", warmup_steps=0,
-                                       single_forward_panorama=True, output_dir=output),
+                                       single_forward_panorama=True, output_dir=output, rotation_speed_rad_s=.8),
                           LocalFollowerConfig(), camera=Camera(), model=None, planner=None,
                           odometry=SimpleNamespace(get_pose=get_pose), panorama_imu=imu,
                           stop_robot=stop, clock=lambda: state.now)

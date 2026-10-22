@@ -1,0 +1,27 @@
+{
+  "direction": "forward",
+  "bbox_xyxy": [
+    228,
+    515,
+    632,
+    719
+  ],
+  "pixel_uv": [
+    430,
+    719
+  ],
+  "depth_m": null,
+  "depth_window_xyxy_exclusive": [
+    427,
+    716,
+    434,
+    720
+  ],
+  "valid_depth_count": 0,
+  "goal_after_turn_xy_m": [
+    1.5,
+    0.0
+  ],
+  "used_forward_fallback": true,
+  "coordinate_convention": "robot_after_turn: x=forward,y=left"
+}

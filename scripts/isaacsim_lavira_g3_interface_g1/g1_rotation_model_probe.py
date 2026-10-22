@@ -13,6 +13,7 @@ import uuid
 
 from g1_camera_model_probe import load_panorama, request_decision, write_json
 from unified_vln.session_client import G3SessionClient
+from live_model_target import mark_display_motion
 
 ROOT = Path(__file__).resolve().parent
 
@@ -71,6 +72,8 @@ def main(argv=None) -> int:
         print("[FLOW] G3健康检查通过；四段左转并停车采图，随后只请求一次决策。", flush=True)
         print(f"[FLOW] 结果：{args.output.resolve()}", flush=True)
         stage = "rotation_capture"
+        # 先清除上一轮实时框和预览路径；显示通知本身不发送任何机器人命令。
+        mark_display_motion(args.output)
         report["rotation_process_started"] = True
         run_rotation(args.network_interface, args.camera_config.resolve(), panorama.resolve())
         # 旧探针的 Ctrl+C 可能返回 0；退出码不能代替完整清单检查。

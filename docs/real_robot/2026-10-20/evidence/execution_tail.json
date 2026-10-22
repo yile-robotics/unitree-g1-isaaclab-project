@@ -1,0 +1,26 @@
+{
+  "decision_index": 4,
+  "window_index": 0,
+  "partial": true,
+  "uploaded": false,
+  "exit_reason": "runner_completed",
+  "state": "stopped",
+  "action_in_progress": false,
+  "pose_start": {
+    "x": -0.688365507072169,
+    "y": -0.38570451874941375,
+    "yaw": -2.2972925101736514,
+    "timestamp": 16353.852729211
+  },
+  "pose_end": {
+    "x": -0.7509356271373462,
+    "y": -0.4295484399651804,
+    "yaw": -2.4407616976319106,
+    "timestamp": 16410.470277334
+  },
+  "world_trace_xy_m": [],
+  "map_explored_before": 26304,
+  "map_explored_at_exit": 27356,
+  "duration_s": 56.61754812300023,
+  "displacement_m": 0.07640228630443617
+}

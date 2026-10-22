@@ -28,37 +28,38 @@ class _Resource:
 
 class RealG1SignalTest(unittest.TestCase):
     def tearDown(self) -> None:
+        run_g1_real._active_episode = None
         run_g1_real._active_dds = None
         run_g1_real._active_camera = None
         run_g1_real._active_odometry = None
         run_g1_real._active_panorama_imu = None
 
-    def test_sigint_stops_dds_before_closing_resources_and_force_exits(self):
-        events: list[str] = []
-        run_g1_real._active_dds = _Resource("dds", events)
-        run_g1_real._active_camera = _Resource("camera", events)
-        run_g1_real._active_odometry = _Resource("odometry", events)
-
-        with patch.object(run_g1_real.os, "_exit") as force_exit:
+    def test_sigint_unwinds_into_run_finally_instead_of_force_exit(self):
+        with self.assertRaises(KeyboardInterrupt):
             run_g1_real._signal_handler(signal.SIGINT, None)
 
-        self.assertEqual(
-            events,
-            ["dds.stop", "dds.close", "camera.close", "odometry.close"],
-        )
-        force_exit.assert_called_once_with(0)
-        self.assertIsNone(run_g1_real._active_dds)
-        self.assertIsNone(run_g1_real._active_camera)
-        self.assertIsNone(run_g1_real._active_odometry)
-
-    def test_sigint_also_closes_dedicated_panorama_imu_after_stop(self):
+    def test_signal_latches_independent_stop_before_unwinding_or_logging(self):
         events = []
-        run_g1_real._active_dds = _Resource("dds", events)
-        run_g1_real._active_panorama_imu = _Resource("imu", events)
-        with patch.object(run_g1_real.os, "_exit"):
+        class Backend:
+            def request_shutdown_stop(self,reason):events.append(reason)
+        run_g1_real._active_dds = Backend()
+        with patch('builtins.print',side_effect=lambda *a,**kw:events.append('print')):
+            with self.assertRaises(KeyboardInterrupt):
+                run_g1_real._signal_handler(signal.SIGINT,None)
+        self.assertEqual(events,['user_interrupt','print'])
+
+    def test_repeated_sigint_does_not_interrupt_cleanup(self):
+        with patch.object(run_g1_real, '_shutdown_in_progress', True):
             run_g1_real._signal_handler(signal.SIGINT, None)
-        self.assertEqual(events, ["dds.stop", "dds.close", "imu.close"])
-        self.assertIsNone(run_g1_real._active_panorama_imu)
+
+    def test_shutdown_stops_before_closing_resources(self):
+        events = []
+        run_g1_real._active_dds = _Resource('dds', events)
+        run_g1_real._active_camera = _Resource('camera', events)
+        run_g1_real._active_odometry = _Resource('odometry', events)
+        run_g1_real._active_panorama_imu = _Resource('imu', events)
+        run_g1_real._shutdown_active_resources(reason='user_interrupt')
+        self.assertEqual(events, ['dds.stop','dds.close','camera.close','imu.close','odometry.close'])
 
     def test_main_registers_sigint_before_running(self):
         parser = MagicMock()
@@ -70,7 +71,9 @@ class RealG1SignalTest(unittest.TestCase):
         ):
             result = run_g1_real.main()
 
-        register.assert_called_once_with(signal.SIGINT, run_g1_real._signal_handler)
+        self.assertEqual(register.call_args_list, [
+            unittest.mock.call(signal.SIGINT, run_g1_real._signal_handler),
+            unittest.mock.call(signal.SIGTERM, run_g1_real._signal_handler)])
         run.assert_called_once_with(parser.parse_args.return_value)
         self.assertEqual(result, 0)
 

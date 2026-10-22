@@ -59,6 +59,7 @@ class UnitreeG1DDSBackend:
         self.latest_yaw_time = 0.0
         # 初始化就保持零速度，后续相机和会话初始化期间线程也不会主动给出行走目标。
         self.target_command = (0.0, 0.0, 0.0)
+        self.shutdown_requested = threading.Event()
         self.running = True
 
         self.subscriber = ChannelSubscriber(
@@ -98,7 +99,13 @@ class UnitreeG1DDSBackend:
         """更新目标速度，由后台线程负责持续发送。"""
 
         with self.lock:
+            if self.shutdown_requested.is_set() and any((vx, vy, wz)):
+                raise RuntimeError('Manual shutdown latched; nonzero command rejected.')
             self.target_command = (float(vx), float(vy), float(wz))
+
+    def request_shutdown_stop(self, reason='user_interrupt') -> None:
+        """只设置不可恢复的关停标志；不拿速度锁、不做RPC，供信号处理器调用。"""
+        self.shutdown_requested.set()
 
     def stop(self) -> None:
         """把目标速度归零，并请求 Unitree 运动客户端停止移动。"""
@@ -130,6 +137,8 @@ class UnitreeG1DDSBackend:
         while self.running:
             with self.lock:
                 command = self.target_command
+            if self.shutdown_requested.is_set():
+                command = (0.0, 0.0, 0.0)
             try:
                 # Move 接收前向/横向/偏航速度，不是关节目标；SDK 内部再调用速度 RPC。
                 # 上层同步等待 iPlanner 或上报时，本线程仍重复上一条命令。

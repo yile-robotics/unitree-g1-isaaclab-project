@@ -1,0 +1,20 @@
+{
+  "schema_version": 2,
+  "request_type": "end2end_decision",
+  "session_id": "g1_pelvis_check_20261020_182930_fb929806",
+  "observation_id": "g1_pelvis_check_20261020_182930_fb929806_decision_000",
+  "bundle_id": 0,
+  "decision_index": 0,
+  "sim_step": 300,
+  "timestamp": 16.735803767000107,
+  "instruction": "向前走到黑色箱子前，然后向左转走到绿色瓶子前停下",
+  "image_width": 1280,
+  "image_height": 720,
+  "history": [],
+  "current_panorama": {
+    "forward": "current_forward",
+    "left": "current_left",
+    "behind": "current_behind",
+    "right": "current_right"
+  }
+}

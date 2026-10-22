@@ -1,0 +1,15 @@
+{
+  "status": "USER_CONFIRMED_SLAM_BASE_IS_PELVIS",
+  "slam_base_verified": true,
+  "slam_base_verification_source": "User confirmed by another method on 2026-10-20; this program has not independently verified TF.",
+  "slam_child_frame": "base_link",
+  "physical_frame": "pelvis",
+  "network_interface": "enxf8e43bbea486",
+  "network_camera_config": "network_camera_d415_local.json",
+  "torso_calibration": "../../../docs/real_robot/2026-10-13/hand_candidate.json",
+  "pelvis_height_above_floor_m": 0.80,
+  "pelvis_height_source": "User corrected the approximate normal standing height from 0.90 m to 0.80 m on 2026-10-20; held constant during navigation.",
+  "floor_z_world_m": 0.0,
+  "max_joint_pair_delta_s": 0.05,
+  "notes": "The SLAM body frame is user-confirmed as pelvis. Height is approximate, not a live measurement. Camera mounting calibration keeps its existing candidate status; the earlier approximate 1.10 m camera height is not used to infer pelvis height."
+}

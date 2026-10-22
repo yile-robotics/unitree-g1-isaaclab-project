@@ -1,0 +1,153 @@
+{
+  "status": "ok",
+  "schema_version": 2,
+  "framework": "G3",
+  "commit": "b92abb3",
+  "audit_interval": 2,
+  "execution_protocol": "phase3_map_progress_v1",
+  "map_progress_required": true,
+  "stage_progress_protocol": "phase4_stage_progress_v2",
+  "stop_gate_protocol": "phase4_stop_gate_v1",
+  "recovery_control_protocol": "phase6_recovery_control_v1",
+  "phase4": {
+    "status": "wired",
+    "stage_progress": {
+      "status": "wired",
+      "frequency": "once_per_decision_after_navigator",
+      "model_role": "stage_progress_shadow",
+      "seed_namespace_offset": 1000
+    },
+    "stop_gate": {
+      "status": "wired",
+      "trigger": "navigator_action_STOP",
+      "frequency": "once_per_stop_proposal",
+      "model_role": "stop_evaluator",
+      "model_backend": "strong_api",
+      "observation": "same_decision_four_direction_views"
+    },
+    "physical_monitor": false,
+    "preempt": false,
+    "failure_verifier": false,
+    "recovery": false,
+    "backtrack": false,
+    "phase5": {
+      "status": "wired",
+      "physical_monitor": true,
+      "failure_verifier": true,
+      "preempt": true,
+      "model_role": "failure_verifier",
+      "model_backend": "strong_api",
+      "node_size_m": 0.75,
+      "fmm_available": false,
+      "collision_ground_truth_available": false,
+      "thresholds": {
+        "min_motion_m": 0.2,
+        "min_map_gain_cells": 20,
+        "low_displacement_streak_windows": 8,
+        "min_windows_per_decision": 5,
+        "min_edge_repeats": 2,
+        "min_repeats_no_progress": 3,
+        "min_node_visits": 3,
+        "min_node_actions": 3
+      }
+    },
+    "phase6": {
+      "status": "wired",
+      "recovery": true,
+      "backtrack": true,
+      "escape_evaluator": true,
+      "recovery_planner": true,
+      "model_role": "recovery_planner_and_escape_evaluator",
+      "model_backend": "strong_api",
+      "waypoint_source": "session_waypoint_registry",
+      "fmm_available": false,
+      "recovery_budget": {
+        "max_executed_recoveries": 3,
+        "max_planner_calls": 6,
+        "max_preexecution_rejections": 3
+      },
+      "cooldown_decisions": 1,
+      "escape_confirmation_policy": "single_valid_positive",
+      "escape_handoff": "one_measured_positive_then_navigator_handoff",
+      "control_protocol": "phase6_recovery_control_v1",
+      "safe_stop_control_precedence": true,
+      "ordinary_navigator_stop_schema_unchanged": true
+    },
+    "phase7": {
+      "status": "wired",
+      "semantic_audit": true,
+      "frequency": "every_2_high_level_decisions",
+      "audit_interval_decisions": 2,
+      "model_role": "semantic_auditor",
+      "model_backend": "strong_api",
+      "seed_namespace_offset": 2200,
+      "candidate_requires_consecutive_valid_audits": 2,
+      "min_motion_for_audit_evidence_m": 0.75
+    }
+  },
+  "phase5": {
+    "status": "wired",
+    "physical_monitor": true,
+    "failure_verifier": true,
+    "preempt": true,
+    "model_role": "failure_verifier",
+    "model_backend": "strong_api",
+    "node_size_m": 0.75,
+    "fmm_available": false,
+    "collision_ground_truth_available": false,
+    "thresholds": {
+      "min_motion_m": 0.2,
+      "min_map_gain_cells": 20,
+      "low_displacement_streak_windows": 8,
+      "min_windows_per_decision": 5,
+      "min_edge_repeats": 2,
+      "min_repeats_no_progress": 3,
+      "min_node_visits": 3,
+      "min_node_actions": 3
+    }
+  },
+  "phase6": {
+    "status": "wired",
+    "recovery": true,
+    "backtrack": true,
+    "escape_evaluator": true,
+    "recovery_planner": true,
+    "model_role": "recovery_planner_and_escape_evaluator",
+    "model_backend": "strong_api",
+    "waypoint_source": "session_waypoint_registry",
+    "fmm_available": false,
+    "recovery_budget": {
+      "max_executed_recoveries": 3,
+      "max_planner_calls": 6,
+      "max_preexecution_rejections": 3
+    },
+    "cooldown_decisions": 1,
+    "escape_confirmation_policy": "single_valid_positive",
+    "escape_handoff": "one_measured_positive_then_navigator_handoff",
+    "control_protocol": "phase6_recovery_control_v1",
+    "safe_stop_control_precedence": true,
+    "ordinary_navigator_stop_schema_unchanged": true
+  },
+  "phase7": {
+    "status": "wired",
+    "semantic_audit": true,
+    "frequency": "every_2_high_level_decisions",
+    "audit_interval_decisions": 2,
+    "model_role": "semantic_auditor",
+    "model_backend": "strong_api",
+    "seed_namespace_offset": 2200,
+    "candidate_requires_consecutive_valid_audits": 2,
+    "min_motion_for_audit_evidence_m": 0.75
+  },
+  "service": "end2end_decision",
+  "stage_planner": {
+    "status": "wired",
+    "role": "stage_planner",
+    "runs": "start_session_only"
+  },
+  "session_protocol": {
+    "start": "/v1/lavira/session/start",
+    "execution_report": "/v1/lavira/execution/report",
+    "end": "/v1/lavira/session/end"
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "schema_version": 2,
+  "response_type": "session_started",
+  "session_id": "g1_pelvis_check_20261020_182930_fb929806",
+  "status": "ACTIVE",
+  "stage_plan_id": "sha256:9908f82ce6a5004e074f9cc8bf5f724b580705b732c67690dd0dc4fbcc7c12c7",
+  "stage_plan_status": "READY",
+  "frozen_stage_plan": {
+    "stage_plan_id": "sha256:9908f82ce6a5004e074f9cc8bf5f724b580705b732c67690dd0dc4fbcc7c12c7",
+    "stage_plan_status": "READY",
+    "stage_total": 2,
+    "subgoals": [
+      "向前走到黑色箱子前",
+      "向左转走到绿色瓶子前停下"
+    ]
+  },
+  "next_action": "REQUEST_DECISION"
+}

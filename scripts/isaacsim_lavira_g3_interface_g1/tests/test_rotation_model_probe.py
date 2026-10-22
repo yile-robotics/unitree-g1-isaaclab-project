@@ -27,6 +27,7 @@ class RotationModelProbeTests(unittest.TestCase):
             return {"status": "ok"}
 
         def rotate(interface, config, panorama):
+            self.assertTrue((output/'display_motion.json').is_file())
             events.append("rotation")
             panorama.mkdir()
             probe.write_json(panorama / "panorama.json", {
@@ -66,11 +67,12 @@ class RotationModelProbeTests(unittest.TestCase):
         self.assertEqual(report["total_slam_turn_deg"], 359.5)
 
     def test_health_failure_prevents_rotation_and_model_request(self):
-        code, report, events, rotations, _, calls, _ = self.run_flow(health_error=RuntimeError("offline"))
+        code, report, events, rotations, _, calls, output = self.run_flow(health_error=RuntimeError("offline"))
         self.assertEqual(code, 1)
         self.assertEqual(events, ["health"])
         self.assertEqual((rotations, calls), (0, 0))
         self.assertEqual(report["stage"], "model_health")
+        self.assertFalse((output/'display_motion.json').exists())
 
     def test_zero_exit_with_interrupted_capture_does_not_upload(self):
         code, report, _, _, loads, calls, _ = self.run_flow(status="INTERRUPTED")

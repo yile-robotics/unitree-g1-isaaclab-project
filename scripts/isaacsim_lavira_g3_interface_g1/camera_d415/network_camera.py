@@ -188,6 +188,9 @@ def main() -> int:
     parser.add_argument("--seconds", type=float, default=30.0, help="接收时间，默认30秒")
     parser.add_argument("--headless", action="store_true", help="只输出帧/深度/延迟，不开GUI")
     parser.add_argument("--output", type=Path, help="可选：保存最后一组和统计，目录必须不存在")
+    from live_model_target import DEFAULT_RESULTS, DecisionWatcher, draw_model_target
+    parser.add_argument("--model-results", type=Path, default=DEFAULT_RESULTS,
+                        help="监听模型结果目录；新决策替换实时RGB上的目标框，不请求模型")
     args = parser.parse_args()
     if not math.isfinite(args.seconds) or args.seconds <= 0:
         parser.error("--seconds must be positive and finite")
@@ -203,6 +206,9 @@ def main() -> int:
     last_print = started - 1.0
     last_received = None
     first_received = None
+    watcher = DecisionWatcher(args.model_results, since_ns=time.time_ns())
+    window = "D415 live RGB | aligned depth 0..5m"
+    display_title = None
     try:
         camera = create_camera(args.config)
         while time.monotonic() - started < args.seconds:
@@ -223,13 +229,26 @@ def main() -> int:
                       f"request+transfer={meta['client_round_trip_s'] * 1000:.1f}ms", flush=True)
                 last_print = now
             if not args.headless:
+                if count == 1:
+                    cv2.namedWindow(window, cv2.WINDOW_NORMAL)
+                    cv2.resizeWindow(window, 1600, round(1600 * camera.height / (2 * camera.width)))
                 # 颜色只用于显示；VLN接收的仍是原始RGB及米制深度。
                 gray = np.clip(last_frame.depth_m / 5.0 * 255, 0, 255).astype(np.uint8)
                 colored = cv2.applyColorMap(gray, cv2.COLORMAP_TURBO)
                 colored[last_frame.depth_m <= 0] = 0
-                cv2.imshow("G1 RGB | aligned depth (display 0..5 m)",
-                           np.hstack((cv2.cvtColor(last_frame.rgb, cv2.COLOR_RGB2BGR), colored)))
-                if cv2.waitKey(1) & 255 in (ord("q"), 27):
+                target = watcher.poll()
+                rgb = draw_model_target(cv2.cvtColor(last_frame.rgb, cv2.COLOR_RGB2BGR), target)
+                cv2.imshow(window, np.hstack((rgb, colored)))
+                title = watcher.window_title("D415 RGB | 对齐深度", last_frame.rgb.shape)
+                if title != display_title:
+                    cv2.setWindowTitle(window, title)
+                    display_title = title
+                key = cv2.waitKey(1) & 255
+                if key in (ord("q"), 27):
+                    break
+                if key == ord('h'):
+                    watcher.hide_until_next_decision()
+                if cv2.getWindowProperty(window, cv2.WND_PROP_VISIBLE) < 1:
                     break
     except KeyboardInterrupt:
         print("[CAMERA] Ctrl+C: closing camera connection")

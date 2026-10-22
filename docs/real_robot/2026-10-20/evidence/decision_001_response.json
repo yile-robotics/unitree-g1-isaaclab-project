@@ -1,0 +1,72 @@
+{
+  "schema_version": 2,
+  "response_type": "end2end_decision",
+  "session_id": "g1_pelvis_check_20261020_182930_fb929806",
+  "observation_id": "g1_pelvis_check_20261020_182930_fb929806_decision_001",
+  "action": "NAVIGATE",
+  "direction": "forward",
+  "target": "黑色箱子",
+  "bbox_2d": [
+    228,
+    515,
+    632,
+    720
+  ],
+  "waypoint": null,
+  "progress_analysis": "当前导航任务要求先向前走到黑色箱子前。根据当前视野，黑色箱子清晰可见，位于前方。",
+  "reasoning": "黑色箱子在前方视野中，可以直接前进到达目标。继续向前移动，将有助于完成任务的第一阶段。",
+  "session_status": "ACTIVE",
+  "stop_phase": null,
+  "stage_plan_id": "sha256:9908f82ce6a5004e074f9cc8bf5f724b580705b732c67690dd0dc4fbcc7c12c7",
+  "stage_plan_status": "READY",
+  "stage_progress": {
+    "stage_plan_id": "sha256:9908f82ce6a5004e074f9cc8bf5f724b580705b732c67690dd0dc4fbcc7c12c7",
+    "stage_total": 2,
+    "stage_completed": 1,
+    "stage_id": 1,
+    "completed_stage_ids": [
+      0
+    ],
+    "current_stage": "向左转走到绿色瓶子前停下",
+    "evidence_of_completion": [
+      "向前走到黑色箱子前"
+    ],
+    "final_target_visible": true,
+    "parse_success": true,
+    "parse_error": null,
+    "decision_index": 1,
+    "role_call_index": 6,
+    "role_seed": null,
+    "image_count": 6,
+    "model_backend": "local_navigator_shadow"
+  },
+  "phase7": {
+    "status": "AUDIT_RECORDED",
+    "audit": {
+      "candidate": true,
+      "candidate_type": "SEMANTIC_WANDERING",
+      "stage_id": 1,
+      "next_subgoal": "向左转走到绿色瓶子前停下",
+      "current_target": "黑色箱子",
+      "supporting_evidence": [
+        "Agent has moved to be directly in front of the black box (Stage 0 completed).",
+        "The current view (FORWARD) still shows the black box, indicating the agent has not yet turned to face the next target.",
+        "The required target 'green bottle' is clearly visible in the LEFT view, but the agent is currently facing the previous target.",
+        "Agent has not yet initiated the 'turn left' maneuver required by the current subgoal despite being at the correct transition point."
+      ],
+      "contradiction_evidence": [],
+      "confidence": "HIGH",
+      "parse_success": true,
+      "parse_error": "",
+      "decision_index": 1,
+      "audit_index": 1,
+      "moved": false,
+      "sustained": false,
+      "role_call_index": 2,
+      "role_seed": null,
+      "model_backend": "strong_api"
+    },
+    "semantic_window_size": 0
+  },
+  "stop_gate": null
+}

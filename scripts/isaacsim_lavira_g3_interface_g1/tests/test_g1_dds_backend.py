@@ -25,6 +25,7 @@ class G1DDSBackendStateTest(unittest.TestCase):
         backend.latest_yaw_rad = None
         backend.latest_yaw_time = 0.0
         backend.imu_timeout_s = 1.0
+        backend.shutdown_requested = threading.Event()
         return backend
 
     def test_callback_uses_imu_yaw_and_never_reads_position(self):
@@ -97,6 +98,22 @@ class G1DDSBackendStateTest(unittest.TestCase):
             backend._command_loop()
 
         backend.client.Move.assert_called_once_with(0.3, 0.0, 0.1)
+
+    def test_shutdown_latch_blocks_late_commands_and_sender_uses_zero(self):
+        backend = self._backend()
+        backend.client = MagicMock()
+        backend.target_command = (.6,0,.2)
+        backend.command_period_s = .02
+        backend.running = True
+        # 信号处理器不取backend.lock，避免在主线程持锁时死锁。
+        with backend.lock:
+            backend.request_shutdown_stop()
+        with self.assertRaisesRegex(RuntimeError,'latched'):
+            backend.set_velocity(.6,0,0)
+        with patch('unified_vln.g1_dds_backend.time.sleep',
+                   side_effect=lambda _:setattr(backend,'running',False)):
+            backend._command_loop()
+        backend.client.Move.assert_called_once_with(0.,0.,0.)
 
 
 if __name__ == "__main__":

@@ -1,0 +1,73 @@
+{
+  "status": "USER_CONFIRMED_SLAM_BASE_IS_PELVIS",
+  "slam_base_verified": true,
+  "slam_base_relation": "base_link=pelvis",
+  "slam_base_verification_source": "User confirmed by another method on 2026-10-20; this program has not independently verified TF.",
+  "calibration_status": "CANDIDATE_REQUIRES_PHYSICAL_VALIDATION",
+  "calibration_file": "/home/yile/projects/unitree-g1-isaaclab-project/docs/real_robot/2026-10-13/hand_candidate.json",
+  "calibration_sha256": "72892df86b302449e8182f99a17477afacd4a3f2797b5671b5016c38eda351a0",
+  "urdf": "/home/yile/projects/unitree_ros/robots/g1_description/g1_29dof_rev_1_0.urdf",
+  "urdf_sha256": "7e397611652000262b03fe060096f77418b7df5c53edf2c7d0bda18758ca19db",
+  "T_torso_camera": [
+    [
+      -0.037229592010458196,
+      0.06973796247297863,
+      0.9968703898044383,
+      0.07034302260082453
+    ],
+    [
+      -0.9984076356091444,
+      0.03971124119794574,
+      -0.04006507805905235,
+      0.049408873460541236
+    ],
+    [
+      -0.04238101740277244,
+      -0.9967746154034199,
+      0.06814848091681731,
+      0.3114064921892314
+    ],
+    [
+      0.0,
+      0.0,
+      0.0,
+      1.0
+    ]
+  ],
+  "initial_T_pelvis_camera": [
+    [
+      -0.054881352435363136,
+      0.0009782643670338334,
+      0.9984924036534749,
+      0.08854580059814246
+    ],
+    [
+      -0.9984853101952238,
+      0.0038408618965668825,
+      -0.0548847256004848,
+      0.05903627705418132
+    ],
+    [
+      -0.0038887631985525537,
+      -0.9999921453585119,
+      0.0007659909045695957,
+      0.34785382882212496
+    ],
+    [
+      0.0,
+      0.0,
+      0.0,
+      1.0
+    ]
+  ],
+  "initial_waist_joint_rad": {
+    "waist_yaw_joint": -0.014838220551609993,
+    "waist_roll_joint": -0.035866737365722656,
+    "waist_pitch_joint": 0.06892790645360947
+  },
+  "pelvis_height_above_floor_m": 0.8,
+  "initial_derived_camera_height_above_floor_m": 1.147853828822125,
+  "height_source": "User corrected the approximate normal standing height from 0.90 m to 0.80 m on 2026-10-20; held constant during navigation.",
+  "projection_model": "full per-frame waist FK; SLAM planar xy/yaw; fixed nominal pelvis height",
+  "local_navigation_projection": "unchanged nominal camera axes; extrinsics only used by exploration map"
+}

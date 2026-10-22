@@ -1,0 +1,1322 @@
+{
+  "camera_mode": "real_single_forward_rgbd_imu75_rotation",
+  "status": "PASS",
+  "phase": "idle",
+  "rotation_direction": "left",
+  "speed_rad_s": 0.8,
+  "imu_stop_deg": 75.0,
+  "settle_s": 0.5,
+  "quarter_turns_completed": 4,
+  "quarter_turns": [
+    {
+      "imu_deg": 90.56342870445478,
+      "slam_deg": 98.13836299709442
+    },
+    {
+      "imu_deg": 87.00628961012656,
+      "slam_deg": 85.48464946734686
+    },
+    {
+      "imu_deg": 85.70530614024489,
+      "slam_deg": 87.23662333432415
+    },
+    {
+      "imu_deg": 89.84568633301278,
+      "slam_deg": 89.32715426499576
+    }
+  ],
+  "total_slam_turn_deg": 360.18679006376124,
+  "pose_timing": "poses observed around capture; not interpolated to exposure time",
+  "captures": {
+    "forward": {
+      "frame_id": 5187,
+      "sim_step": 838,
+      "timestamp": 47.732997555998736,
+      "K": [
+        [
+          911.0339965820312,
+          0.0,
+          652.1967163085938
+        ],
+        [
+          0.0,
+          910.653076171875,
+          367.9189147949219
+        ],
+        [
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "stop_requested_monotonic_s": 16196.197544625,
+      "stop_returned_monotonic_s": 16196.403623193,
+      "capture_requested_monotonic_s": 16196.916287214,
+      "capture_returned_monotonic_s": 16197.024614726,
+      "pose_before_capture": {
+        "x": -0.29787230633215295,
+        "y": 0.4835015166697539,
+        "yaw": 2.60506469350592,
+        "timestamp": 16196.898727297
+      },
+      "pose_after_capture": {
+        "x": -0.30126796097963815,
+        "y": 0.48386487233661757,
+        "yaw": 2.6065215749182826,
+        "timestamp": 16196.99617399
+      },
+      "imu_before_capture_rad": 0.01223924569785595,
+      "imu_after_capture_rad": 0.012051580473780632,
+      "camera_metadata": {
+        "protocol": 1,
+        "sequence": 5187,
+        "serial": "211222063932",
+        "sdk_version": "2.54.1",
+        "width": 1280,
+        "height": 720,
+        "rgb_encoding": "RGB8",
+        "depth_encoding": "Z16_BE",
+        "depth_aligned_to": "color",
+        "rgb_bytes": 2764800,
+        "depth_bytes": 1843200,
+        "depth_scale_m": 0.0010000000474974513,
+        "color_frame_number": 5202,
+        "depth_frame_number": 5198,
+        "color_timestamp_ms": 1792513824738.3237,
+        "depth_timestamp_ms": 1792513824737.723,
+        "color_timestamp_domain": "Global Time",
+        "depth_timestamp_domain": "Global Time",
+        "color_intrinsics": {
+          "width": 1280,
+          "height": 720,
+          "K": [
+            [
+              911.0339965820312,
+              0,
+              652.1967163085938
+            ],
+            [
+              0,
+              910.653076171875,
+              367.9189147949219
+            ],
+            [
+              0,
+              0,
+              1
+            ]
+          ],
+          "distortion_model": "Inverse Brown Conrady",
+          "coeffs": [
+            0,
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        "aligned_depth_intrinsics": {
+          "width": 1280,
+          "height": 720,
+          "K": [
+            [
+              911.0339965820312,
+              0,
+              652.1967163085938
+            ],
+            [
+              0,
+              910.653076171875,
+              367.9189147949219
+            ],
+            [
+              0,
+              0,
+              1
+            ]
+          ],
+          "distortion_model": "Inverse Brown Conrady",
+          "coeffs": [
+            0,
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        "depth_to_color": {
+          "rotation_column_major": [
+            0.9999913573265076,
+            -0.002274871803820133,
+            -0.0034736045636236668,
+            0.0022388340439647436,
+            0.9999439716339111,
+            -0.010343598201870918,
+            0.0034969402477145195,
+            0.010335731320083141,
+            0.9999404549598694
+          ],
+          "translation_m": [
+            0.015019607730209827,
+            -0.00016812363173812628,
+            -0.00025426025968044996
+          ]
+        },
+        "camera_to_robot_extrinsics": null,
+        "startup_settings": {
+          "snapshot_stage": "after_pipeline_start_before_warmup",
+          "note": "Read-only sequential startup snapshot; automatic exposure can change afterwards; robot epoch clock may be incorrect",
+          "robot_epoch_s": 1792513474.7020037,
+          "sdk_version": "2.54.1",
+          "serial": "211222063932",
+          "firmware": "5.16.0.1",
+          "active_streams": [
+            {
+              "type": "Depth",
+              "format": "Z16",
+              "fps": 15,
+              "width": 1280,
+              "height": 720
+            },
+            {
+              "type": "Color",
+              "format": "RGB8",
+              "fps": 15,
+              "width": 1280,
+              "height": 720
+            }
+          ],
+          "sensors": [
+            {
+              "name": "Stereo Module",
+              "options": {
+                "enable_auto_exposure": {
+                  "status": "ok",
+                  "value": 1
+                },
+                "exposure": {
+                  "status": "ok",
+                  "value": 33000
+                },
+                "visual_preset": {
+                  "status": "ok",
+                  "value": 0,
+                  "value_description": "Custom"
+                },
+                "emitter_enabled": {
+                  "status": "ok",
+                  "value": 1,
+                  "value_description": "Laser"
+                },
+                "laser_power": {
+                  "status": "ok",
+                  "value": 150
+                }
+              }
+            },
+            {
+              "name": "RGB Camera",
+              "options": {
+                "enable_auto_exposure": {
+                  "status": "ok",
+                  "value": 1
+                },
+                "exposure": {
+                  "status": "ok",
+                  "value": 166
+                },
+                "visual_preset": {
+                  "status": "unsupported",
+                  "value": null
+                },
+                "emitter_enabled": {
+                  "status": "unsupported",
+                  "value": null
+                },
+                "laser_power": {
+                  "status": "unsupported",
+                  "value": null
+                }
+              }
+            }
+          ]
+        },
+        "server_frame_age_s": 0.010455718,
+        "client_received_monotonic_s": 16196.970456996,
+        "client_round_trip_s": 0.05416283999875304,
+        "pair_delta_ms": 0.600830078125,
+        "valid_depth_fraction": 0.9219466145833334,
+        "slam_base_relation": "base_link=pelvis",
+        "slam_base_verified": true,
+        "slam_base_verification_source": "User confirmed by another method on 2026-10-20; this program has not independently verified TF.",
+        "T_pelvis_camera": [
+          [
+            -0.055985620088466664,
+            -0.07701126382409834,
+            0.9954571189094614,
+            0.11201889485554972
+          ],
+          [
+            -0.9982187021190129,
+            -0.016269825680386228,
+            -0.057399612473994485,
+            0.06489107371759507
+          ],
+          [
+            0.02061633049659315,
+            -0.9968974661501276,
+            -0.07596320754358869,
+            0.3384611406014606
+          ],
+          [
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "pelvis_height_above_floor_m": 0.8,
+        "derived_camera_height_above_floor_m": 1.1384611406014606,
+        "waist_joint_rad": {
+          "waist_yaw_joint": -0.012976747006177902,
+          "waist_roll_joint": -0.0571591854095459,
+          "waist_pitch_joint": 0.14677993953227997
+        },
+        "joint_image_receipt_delta_s": 0.00021963899962429423,
+        "geometry_time_pairing": "nearest host receipt, not exposure synchronisation"
+      }
+    },
+    "left": {
+      "frame_id": 5254,
+      "sim_step": 922,
+      "timestamp": 52.232157459997325,
+      "K": [
+        [
+          911.0339965820312,
+          0.0,
+          652.1967163085938
+        ],
+        [
+          0.0,
+          910.653076171875,
+          367.9189147949219
+        ],
+        [
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "stop_requested_monotonic_s": 16200.71934938,
+      "stop_returned_monotonic_s": 16200.924369167,
+      "capture_requested_monotonic_s": 16201.435476204,
+      "capture_returned_monotonic_s": 16201.560478487,
+      "pose_before_capture": {
+        "x": -0.27041011933408465,
+        "y": 0.30757622150976377,
+        "yaw": -1.9638261754446356,
+        "timestamp": 16201.405972048
+      },
+      "pose_after_capture": {
+        "x": -0.2909458103322534,
+        "y": 0.31192410328211484,
+        "yaw": -1.9538845234967612,
+        "timestamp": 16201.51133899
+      },
+      "imu_before_capture_rad": 1.5924639701843262,
+      "imu_after_capture_rad": 1.5915340185165405,
+      "camera_metadata": {
+        "protocol": 1,
+        "sequence": 5254,
+        "serial": "211222063932",
+        "sdk_version": "2.54.1",
+        "width": 1280,
+        "height": 720,
+        "rgb_encoding": "RGB8",
+        "depth_encoding": "Z16_BE",
+        "depth_aligned_to": "color",
+        "rgb_bytes": 2764800,
+        "depth_bytes": 1843200,
+        "depth_scale_m": 0.0010000000474974513,
+        "color_frame_number": 5269,
+        "depth_frame_number": 5265,
+        "color_timestamp_ms": 1792513829239.7217,
+        "depth_timestamp_ms": 1792513829239.121,
+        "color_timestamp_domain": "Global Time",
+        "depth_timestamp_domain": "Global Time",
+        "color_intrinsics": {
+          "width": 1280,
+          "height": 720,
+          "K": [
+            [
+              911.0339965820312,
+              0,
+              652.1967163085938
+            ],
+            [
+              0,
+              910.653076171875,
+              367.9189147949219
+            ],
+            [
+              0,
+              0,
+              1
+            ]
+          ],
+          "distortion_model": "Inverse Brown Conrady",
+          "coeffs": [
+            0,
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        "aligned_depth_intrinsics": {
+          "width": 1280,
+          "height": 720,
+          "K": [
+            [
+              911.0339965820312,
+              0,
+              652.1967163085938
+            ],
+            [
+              0,
+              910.653076171875,
+              367.9189147949219
+            ],
+            [
+              0,
+              0,
+              1
+            ]
+          ],
+          "distortion_model": "Inverse Brown Conrady",
+          "coeffs": [
+            0,
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        "depth_to_color": {
+          "rotation_column_major": [
+            0.9999913573265076,
+            -0.002274871803820133,
+            -0.0034736045636236668,
+            0.0022388340439647436,
+            0.9999439716339111,
+            -0.010343598201870918,
+            0.0034969402477145195,
+            0.010335731320083141,
+            0.9999404549598694
+          ],
+          "translation_m": [
+            0.015019607730209827,
+            -0.00016812363173812628,
+            -0.00025426025968044996
+          ]
+        },
+        "camera_to_robot_extrinsics": null,
+        "startup_settings": {
+          "snapshot_stage": "after_pipeline_start_before_warmup",
+          "note": "Read-only sequential startup snapshot; automatic exposure can change afterwards; robot epoch clock may be incorrect",
+          "robot_epoch_s": 1792513474.7020037,
+          "sdk_version": "2.54.1",
+          "serial": "211222063932",
+          "firmware": "5.16.0.1",
+          "active_streams": [
+            {
+              "type": "Depth",
+              "format": "Z16",
+              "fps": 15,
+              "width": 1280,
+              "height": 720
+            },
+            {
+              "type": "Color",
+              "format": "RGB8",
+              "fps": 15,
+              "width": 1280,
+              "height": 720
+            }
+          ],
+          "sensors": [
+            {
+              "name": "Stereo Module",
+              "options": {
+                "enable_auto_exposure": {
+                  "status": "ok",
+                  "value": 1
+                },
+                "exposure": {
+                  "status": "ok",
+                  "value": 33000
+                },
+                "visual_preset": {
+                  "status": "ok",
+                  "value": 0,
+                  "value_description": "Custom"
+                },
+                "emitter_enabled": {
+                  "status": "ok",
+                  "value": 1,
+                  "value_description": "Laser"
+                },
+                "laser_power": {
+                  "status": "ok",
+                  "value": 150
+                }
+              }
+            },
+            {
+              "name": "RGB Camera",
+              "options": {
+                "enable_auto_exposure": {
+                  "status": "ok",
+                  "value": 1
+                },
+                "exposure": {
+                  "status": "ok",
+                  "value": 166
+                },
+                "visual_preset": {
+                  "status": "unsupported",
+                  "value": null
+                },
+                "emitter_enabled": {
+                  "status": "unsupported",
+                  "value": null
+                },
+                "laser_power": {
+                  "status": "unsupported",
+                  "value": null
+                }
+              }
+            }
+          ]
+        },
+        "server_frame_age_s": 0.007781887,
+        "client_received_monotonic_s": 16201.46957292,
+        "client_round_trip_s": 0.034092348998456146,
+        "pair_delta_ms": 0.6005859375,
+        "valid_depth_fraction": 0.8984776475694445,
+        "slam_base_relation": "base_link=pelvis",
+        "slam_base_verified": true,
+        "slam_base_verification_source": "User confirmed by another method on 2026-10-20; this program has not independently verified TF.",
+        "T_pelvis_camera": [
+          [
+            0.026301091056646374,
+            -0.07178101020112293,
+            0.9970735876472391,
+            0.10522420531840644
+          ],
+          [
+            -0.999276663720092,
+            0.025517098756636686,
+            0.028196223425971556,
+            0.059600360958702255
+          ],
+          [
+            -0.02746637860500056,
+            -0.9970939595873349,
+            -0.07105796085433634,
+            0.342091574234105
+          ],
+          [
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "pelvis_height_above_floor_m": 0.8,
+        "derived_camera_height_above_floor_m": 1.1420915742341051,
+        "waist_joint_rad": {
+          "waist_yaw_joint": 0.06911557167768478,
+          "waist_roll_joint": -0.0093263890594244,
+          "waist_pitch_joint": 0.13980939984321594
+        },
+        "joint_image_receipt_delta_s": 0.00010139400001207832,
+        "geometry_time_pairing": "nearest host receipt, not exposure synchronisation"
+      }
+    },
+    "behind": {
+      "frame_id": 5302,
+      "sim_step": 980,
+      "timestamp": 55.460852315998636,
+      "K": [
+        [
+          911.0339965820312,
+          0.0,
+          652.1967163085938
+        ],
+        [
+          0.0,
+          910.653076171875,
+          367.9189147949219
+        ],
+        [
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "stop_requested_monotonic_s": 16203.928101658,
+      "stop_returned_monotonic_s": 16204.132255945,
+      "capture_requested_monotonic_s": 16204.654536291,
+      "capture_returned_monotonic_s": 16204.779539175,
+      "pose_before_capture": {
+        "x": -0.0942971052733732,
+        "y": 0.23959977515363393,
+        "yaw": -0.46189593037834226,
+        "timestamp": 16204.622396455
+      },
+      "pose_after_capture": {
+        "x": -0.09009959914159203,
+        "y": 0.23985722609678936,
+        "yaw": -0.4566572789845452,
+        "timestamp": 16204.717305584
+      },
+      "imu_before_capture_rad": 3.109377384185791,
+      "imu_after_capture_rad": 3.108621835708618,
+      "camera_metadata": {
+        "protocol": 1,
+        "sequence": 5302,
+        "serial": "211222063932",
+        "sdk_version": "2.54.1",
+        "width": 1280,
+        "height": 720,
+        "rgb_encoding": "RGB8",
+        "depth_encoding": "Z16_BE",
+        "depth_aligned_to": "color",
+        "rgb_bytes": 2764800,
+        "depth_bytes": 1843200,
+        "depth_scale_m": 0.0010000000474974513,
+        "color_frame_number": 5317,
+        "depth_frame_number": 5313,
+        "color_timestamp_ms": 1792513832465.4495,
+        "depth_timestamp_ms": 1792513832464.8474,
+        "color_timestamp_domain": "Global Time",
+        "depth_timestamp_domain": "Global Time",
+        "color_intrinsics": {
+          "width": 1280,
+          "height": 720,
+          "K": [
+            [
+              911.0339965820312,
+              0,
+              652.1967163085938
+            ],
+            [
+              0,
+              910.653076171875,
+              367.9189147949219
+            ],
+            [
+              0,
+              0,
+              1
+            ]
+          ],
+          "distortion_model": "Inverse Brown Conrady",
+          "coeffs": [
+            0,
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        "aligned_depth_intrinsics": {
+          "width": 1280,
+          "height": 720,
+          "K": [
+            [
+              911.0339965820312,
+              0,
+              652.1967163085938
+            ],
+            [
+              0,
+              910.653076171875,
+              367.9189147949219
+            ],
+            [
+              0,
+              0,
+              1
+            ]
+          ],
+          "distortion_model": "Inverse Brown Conrady",
+          "coeffs": [
+            0,
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        "depth_to_color": {
+          "rotation_column_major": [
+            0.9999913573265076,
+            -0.002274871803820133,
+            -0.0034736045636236668,
+            0.0022388340439647436,
+            0.9999439716339111,
+            -0.010343598201870918,
+            0.0034969402477145195,
+            0.010335731320083141,
+            0.9999404549598694
+          ],
+          "translation_m": [
+            0.015019607730209827,
+            -0.00016812363173812628,
+            -0.00025426025968044996
+          ]
+        },
+        "camera_to_robot_extrinsics": null,
+        "startup_settings": {
+          "snapshot_stage": "after_pipeline_start_before_warmup",
+          "note": "Read-only sequential startup snapshot; automatic exposure can change afterwards; robot epoch clock may be incorrect",
+          "robot_epoch_s": 1792513474.7020037,
+          "sdk_version": "2.54.1",
+          "serial": "211222063932",
+          "firmware": "5.16.0.1",
+          "active_streams": [
+            {
+              "type": "Depth",
+              "format": "Z16",
+              "fps": 15,
+              "width": 1280,
+              "height": 720
+            },
+            {
+              "type": "Color",
+              "format": "RGB8",
+              "fps": 15,
+              "width": 1280,
+              "height": 720
+            }
+          ],
+          "sensors": [
+            {
+              "name": "Stereo Module",
+              "options": {
+                "enable_auto_exposure": {
+                  "status": "ok",
+                  "value": 1
+                },
+                "exposure": {
+                  "status": "ok",
+                  "value": 33000
+                },
+                "visual_preset": {
+                  "status": "ok",
+                  "value": 0,
+                  "value_description": "Custom"
+                },
+                "emitter_enabled": {
+                  "status": "ok",
+                  "value": 1,
+                  "value_description": "Laser"
+                },
+                "laser_power": {
+                  "status": "ok",
+                  "value": 150
+                }
+              }
+            },
+            {
+              "name": "RGB Camera",
+              "options": {
+                "enable_auto_exposure": {
+                  "status": "ok",
+                  "value": 1
+                },
+                "exposure": {
+                  "status": "ok",
+                  "value": 166
+                },
+                "visual_preset": {
+                  "status": "unsupported",
+                  "value": null
+                },
+                "emitter_enabled": {
+                  "status": "unsupported",
+                  "value": null
+                },
+                "laser_power": {
+                  "status": "unsupported",
+                  "value": null
+                }
+              }
+            }
+          ]
+        },
+        "server_frame_age_s": 0.007034812,
+        "client_received_monotonic_s": 16204.699720702,
+        "client_round_trip_s": 0.0451788709997345,
+        "pair_delta_ms": 0.60205078125,
+        "valid_depth_fraction": 0.9053721788194444,
+        "slam_base_relation": "base_link=pelvis",
+        "slam_base_verified": true,
+        "slam_base_verification_source": "User confirmed by another method on 2026-10-20; this program has not independently verified TF.",
+        "T_pelvis_camera": [
+          [
+            0.05402715763063985,
+            -0.09197634855687509,
+            0.994294432019258,
+            0.10930895699222667
+          ],
+          [
+            -0.9976514656999695,
+            0.03701275367550233,
+            0.057633402225276104,
+            0.05852336663832407
+          ],
+          [
+            -0.042102484784841986,
+            -0.9950730663481453,
+            -0.08976064507032736,
+            0.34076028966900257
+          ],
+          [
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "pelvis_height_above_floor_m": 0.8,
+        "derived_camera_height_above_floor_m": 1.1407602896690026,
+        "waist_joint_rad": {
+          "waist_yaw_joint": 0.0975867435336113,
+          "waist_roll_joint": 0.006116161122918129,
+          "waist_pitch_joint": 0.15796571969985962
+        },
+        "joint_image_receipt_delta_s": 0.0002862290002667578,
+        "geometry_time_pairing": "nearest host receipt, not exposure synchronisation"
+      }
+    },
+    "right": {
+      "frame_id": 5347,
+      "sim_step": 1034,
+      "timestamp": 58.48191241099994,
+      "K": [
+        [
+          911.0339965820312,
+          0.0,
+          652.1967163085938
+        ],
+        [
+          0.0,
+          910.653076171875,
+          367.9189147949219
+        ],
+        [
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "stop_requested_monotonic_s": 16206.946258185,
+      "stop_returned_monotonic_s": 16207.148425598,
+      "capture_requested_monotonic_s": 16207.662408802,
+      "capture_returned_monotonic_s": 16207.754668485,
+      "pose_before_capture": {
+        "x": -0.08851477693950961,
+        "y": 0.4051046419683109,
+        "yaw": 1.0645754596917092,
+        "timestamp": 16207.629526859
+      },
+      "pose_after_capture": {
+        "x": -0.07849226401010853,
+        "y": 0.4261287506425274,
+        "yaw": 1.0740250022212376,
+        "timestamp": 16207.726413566
+      },
+      "imu_before_capture_rad": -1.6791588068008423,
+      "imu_after_capture_rad": -1.6769142150878906,
+      "camera_metadata": {
+        "protocol": 1,
+        "sequence": 5347,
+        "serial": "211222063932",
+        "sdk_version": "2.54.1",
+        "width": 1280,
+        "height": 720,
+        "rgb_encoding": "RGB8",
+        "depth_encoding": "Z16_BE",
+        "depth_aligned_to": "color",
+        "rgb_bytes": 2764800,
+        "depth_bytes": 1843200,
+        "depth_scale_m": 0.0010000000474974513,
+        "color_frame_number": 5362,
+        "depth_frame_number": 5358,
+        "color_timestamp_ms": 1792513835488.691,
+        "depth_timestamp_ms": 1792513835488.0896,
+        "color_timestamp_domain": "Global Time",
+        "depth_timestamp_domain": "Global Time",
+        "color_intrinsics": {
+          "width": 1280,
+          "height": 720,
+          "K": [
+            [
+              911.0339965820312,
+              0,
+              652.1967163085938
+            ],
+            [
+              0,
+              910.653076171875,
+              367.9189147949219
+            ],
+            [
+              0,
+              0,
+              1
+            ]
+          ],
+          "distortion_model": "Inverse Brown Conrady",
+          "coeffs": [
+            0,
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        "aligned_depth_intrinsics": {
+          "width": 1280,
+          "height": 720,
+          "K": [
+            [
+              911.0339965820312,
+              0,
+              652.1967163085938
+            ],
+            [
+              0,
+              910.653076171875,
+              367.9189147949219
+            ],
+            [
+              0,
+              0,
+              1
+            ]
+          ],
+          "distortion_model": "Inverse Brown Conrady",
+          "coeffs": [
+            0,
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        "depth_to_color": {
+          "rotation_column_major": [
+            0.9999913573265076,
+            -0.002274871803820133,
+            -0.0034736045636236668,
+            0.0022388340439647436,
+            0.9999439716339111,
+            -0.010343598201870918,
+            0.0034969402477145195,
+            0.010335731320083141,
+            0.9999404549598694
+          ],
+          "translation_m": [
+            0.015019607730209827,
+            -0.00016812363173812628,
+            -0.00025426025968044996
+          ]
+        },
+        "camera_to_robot_extrinsics": null,
+        "startup_settings": {
+          "snapshot_stage": "after_pipeline_start_before_warmup",
+          "note": "Read-only sequential startup snapshot; automatic exposure can change afterwards; robot epoch clock may be incorrect",
+          "robot_epoch_s": 1792513474.7020037,
+          "sdk_version": "2.54.1",
+          "serial": "211222063932",
+          "firmware": "5.16.0.1",
+          "active_streams": [
+            {
+              "type": "Depth",
+              "format": "Z16",
+              "fps": 15,
+              "width": 1280,
+              "height": 720
+            },
+            {
+              "type": "Color",
+              "format": "RGB8",
+              "fps": 15,
+              "width": 1280,
+              "height": 720
+            }
+          ],
+          "sensors": [
+            {
+              "name": "Stereo Module",
+              "options": {
+                "enable_auto_exposure": {
+                  "status": "ok",
+                  "value": 1
+                },
+                "exposure": {
+                  "status": "ok",
+                  "value": 33000
+                },
+                "visual_preset": {
+                  "status": "ok",
+                  "value": 0,
+                  "value_description": "Custom"
+                },
+                "emitter_enabled": {
+                  "status": "ok",
+                  "value": 1,
+                  "value_description": "Laser"
+                },
+                "laser_power": {
+                  "status": "ok",
+                  "value": 150
+                }
+              }
+            },
+            {
+              "name": "RGB Camera",
+              "options": {
+                "enable_auto_exposure": {
+                  "status": "ok",
+                  "value": 1
+                },
+                "exposure": {
+                  "status": "ok",
+                  "value": 166
+                },
+                "visual_preset": {
+                  "status": "unsupported",
+                  "value": null
+                },
+                "emitter_enabled": {
+                  "status": "unsupported",
+                  "value": null
+                },
+                "laser_power": {
+                  "status": "unsupported",
+                  "value": null
+                }
+              }
+            }
+          ]
+        },
+        "server_frame_age_s": 0.010178676,
+        "client_received_monotonic_s": 16207.718523663,
+        "client_round_trip_s": 0.05610957099997904,
+        "pair_delta_ms": 0.601318359375,
+        "valid_depth_fraction": 0.9111067708333334,
+        "slam_base_relation": "base_link=pelvis",
+        "slam_base_verified": true,
+        "slam_base_verification_source": "User confirmed by another method on 2026-10-20; this program has not independently verified TF.",
+        "T_pelvis_camera": [
+          [
+            0.026104037316859795,
+            -0.09220008039438947,
+            0.9953982742656472,
+            0.11128536955155194
+          ],
+          [
+            -0.9985859271915297,
+            0.04372447092861664,
+            0.030237669504223207,
+            0.054209060766540654
+          ],
+          [
+            -0.046311178464750954,
+            -0.994780033885522,
+            -0.0909283175469845,
+            0.34084117773087547
+          ],
+          [
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "pelvis_height_above_floor_m": 0.8,
+        "derived_camera_height_above_floor_m": 1.1408411777308756,
+        "waist_joint_rad": {
+          "waist_yaw_joint": 0.06966464221477509,
+          "waist_roll_joint": 0.010376720689237118,
+          "waist_pitch_joint": 0.15897078812122345
+        },
+        "joint_image_receipt_delta_s": 0.00016278600014629774,
+        "geometry_time_pairing": "nearest host receipt, not exposure synchronisation"
+      }
+    },
+    "forward_return": {
+      "frame_id": 5402,
+      "sim_step": 1102,
+      "timestamp": 62.17739633399833,
+      "K": [
+        [
+          911.0339965820312,
+          0.0,
+          652.1967163085938
+        ],
+        [
+          0.0,
+          910.653076171875,
+          367.9189147949219
+        ],
+        [
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "stop_requested_monotonic_s": 16210.641837331,
+      "stop_returned_monotonic_s": 16210.843861453,
+      "capture_requested_monotonic_s": 16211.352267199,
+      "capture_returned_monotonic_s": 16211.448841951,
+      "pose_before_capture": {
+        "x": -0.29627563311954275,
+        "y": 0.4058018654021991,
+        "yaw": 2.633077955582309,
+        "timestamp": 16211.333091852
+      },
+      "pose_after_capture": {
+        "x": -0.29110263973703876,
+        "y": 0.4093694011154839,
+        "yaw": 2.637255212292892,
+        "timestamp": 16211.44096455
+      },
+      "imu_before_capture_rad": -0.10769131779670715,
+      "imu_after_capture_rad": -0.10760147869586945,
+      "camera_metadata": {
+        "protocol": 1,
+        "sequence": 5402,
+        "serial": "211222063932",
+        "sdk_version": "2.54.1",
+        "width": 1280,
+        "height": 720,
+        "rgb_encoding": "RGB8",
+        "depth_encoding": "Z16_BE",
+        "depth_aligned_to": "color",
+        "rgb_bytes": 2764800,
+        "depth_bytes": 1843200,
+        "depth_scale_m": 0.0010000000474974513,
+        "color_frame_number": 5417,
+        "depth_frame_number": 5413,
+        "color_timestamp_ms": 1792513839184.4878,
+        "depth_timestamp_ms": 1792513839183.886,
+        "color_timestamp_domain": "Global Time",
+        "depth_timestamp_domain": "Global Time",
+        "color_intrinsics": {
+          "width": 1280,
+          "height": 720,
+          "K": [
+            [
+              911.0339965820312,
+              0,
+              652.1967163085938
+            ],
+            [
+              0,
+              910.653076171875,
+              367.9189147949219
+            ],
+            [
+              0,
+              0,
+              1
+            ]
+          ],
+          "distortion_model": "Inverse Brown Conrady",
+          "coeffs": [
+            0,
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        "aligned_depth_intrinsics": {
+          "width": 1280,
+          "height": 720,
+          "K": [
+            [
+              911.0339965820312,
+              0,
+              652.1967163085938
+            ],
+            [
+              0,
+              910.653076171875,
+              367.9189147949219
+            ],
+            [
+              0,
+              0,
+              1
+            ]
+          ],
+          "distortion_model": "Inverse Brown Conrady",
+          "coeffs": [
+            0,
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        "depth_to_color": {
+          "rotation_column_major": [
+            0.9999913573265076,
+            -0.002274871803820133,
+            -0.0034736045636236668,
+            0.0022388340439647436,
+            0.9999439716339111,
+            -0.010343598201870918,
+            0.0034969402477145195,
+            0.010335731320083141,
+            0.9999404549598694
+          ],
+          "translation_m": [
+            0.015019607730209827,
+            -0.00016812363173812628,
+            -0.00025426025968044996
+          ]
+        },
+        "camera_to_robot_extrinsics": null,
+        "startup_settings": {
+          "snapshot_stage": "after_pipeline_start_before_warmup",
+          "note": "Read-only sequential startup snapshot; automatic exposure can change afterwards; robot epoch clock may be incorrect",
+          "robot_epoch_s": 1792513474.7020037,
+          "sdk_version": "2.54.1",
+          "serial": "211222063932",
+          "firmware": "5.16.0.1",
+          "active_streams": [
+            {
+              "type": "Depth",
+              "format": "Z16",
+              "fps": 15,
+              "width": 1280,
+              "height": 720
+            },
+            {
+              "type": "Color",
+              "format": "RGB8",
+              "fps": 15,
+              "width": 1280,
+              "height": 720
+            }
+          ],
+          "sensors": [
+            {
+              "name": "Stereo Module",
+              "options": {
+                "enable_auto_exposure": {
+                  "status": "ok",
+                  "value": 1
+                },
+                "exposure": {
+                  "status": "ok",
+                  "value": 33000
+                },
+                "visual_preset": {
+                  "status": "ok",
+                  "value": 0,
+                  "value_description": "Custom"
+                },
+                "emitter_enabled": {
+                  "status": "ok",
+                  "value": 1,
+                  "value_description": "Laser"
+                },
+                "laser_power": {
+                  "status": "ok",
+                  "value": 150
+                }
+              }
+            },
+            {
+              "name": "RGB Camera",
+              "options": {
+                "enable_auto_exposure": {
+                  "status": "ok",
+                  "value": 1
+                },
+                "exposure": {
+                  "status": "ok",
+                  "value": 166
+                },
+                "visual_preset": {
+                  "status": "unsupported",
+                  "value": null
+                },
+                "emitter_enabled": {
+                  "status": "unsupported",
+                  "value": null
+                },
+                "laser_power": {
+                  "status": "unsupported",
+                  "value": null
+                }
+              }
+            }
+          ]
+        },
+        "server_frame_age_s": 0.007019975,
+        "client_received_monotonic_s": 16211.414125049,
+        "client_round_trip_s": 0.061852699998780736,
+        "pair_delta_ms": 0.601806640625,
+        "valid_depth_fraction": 0.92048828125,
+        "slam_base_relation": "base_link=pelvis",
+        "slam_base_verified": true,
+        "slam_base_verification_source": "User confirmed by another method on 2026-10-20; this program has not independently verified TF.",
+        "T_pelvis_camera": [
+          [
+            0.07127714429879543,
+            -0.06819474055288066,
+            0.9951226286551496,
+            0.10104751724717456
+          ],
+          [
+            -0.9964356715433447,
+            0.040257825342205365,
+            0.07413002073843925,
+            0.05886873671931317
+          ],
+          [
+            -0.04511675050991194,
+            -0.9968594609370177,
+            -0.0650822092724618,
+            0.34370428455724467
+          ],
+          [
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "pelvis_height_above_floor_m": 0.8,
+        "derived_camera_height_above_floor_m": 1.1437042845572447,
+        "waist_joint_rad": {
+          "waist_yaw_joint": 0.11399181932210922,
+          "waist_roll_joint": 0.008065992966294289,
+          "waist_pitch_joint": 0.13311488926410675
+        },
+        "joint_image_receipt_delta_s": 0.0003362399984325748,
+        "geometry_time_pairing": "nearest host receipt, not exposure synchronisation"
+      }
+    }
+  }
+}

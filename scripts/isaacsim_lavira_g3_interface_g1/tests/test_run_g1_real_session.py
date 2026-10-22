@@ -61,7 +61,7 @@ class RealSessionTest(unittest.TestCase):
                 runner._wait_for_odometry(odom, 1.0)
 
     def exercise_run(self, *, legacy=False, start_error=False, update_error=False,
-                     success=True):
+                     success=True, adapted_camera=False, interrupt=False):
         events = []
         dds, camera, odom, episode = (MagicMock() for _ in range(4))
         odom.frame_id = "odom"
@@ -76,6 +76,26 @@ class RealSessionTest(unittest.TestCase):
         episode.history = []
         episode.state = "stopped"
 
+        if adapted_camera:
+            from unified_vln.map_progress import SparseEpisodeExplorationMap
+            class AdaptedCamera:
+                def validate_slam_frame(self,parent,child):
+                    events.append('validate_frame')
+                def create_exploration_map(self,config,**kwargs):
+                    events.append('real_map')
+                    return SparseEpisodeExplorationMap(config,**kwargs)
+                def guard_motion_backend(self,backend,*args):
+                    events.append('real_guard')
+                    return backend
+                def create_planner(self,*args):
+                    events.append('real_planner')
+                    return MagicMock()
+                def provenance(self):
+                    return {'slam_base_verified':False}
+                def close(self):
+                    events.append('camera_close')
+            camera=AdaptedCamera()
+
         def start():
             events.append("start")
             if start_error:
@@ -84,6 +104,8 @@ class RealSessionTest(unittest.TestCase):
 
         def update(**kwargs):
             events.append("update")
+            if interrupt:
+                raise KeyboardInterrupt()
             if update_error:
                 raise RuntimeError("control failed")
             episode.completed = True
@@ -104,8 +126,8 @@ class RealSessionTest(unittest.TestCase):
             make_episode = stack.enter_context(patch.object(
                 runner, "RealG1Episode", return_value=episode))
             stack.enter_context(patch.object(runner.time, "sleep"))
-            if start_error or update_error:
-                with self.assertRaises(RuntimeError):
+            if start_error or update_error or interrupt:
+                with self.assertRaises(KeyboardInterrupt if interrupt else RuntimeError):
                     runner.run(self.args(*extra))
             else:
                 self.assertEqual(runner.run(self.args(*extra)), 0)
@@ -126,6 +148,9 @@ class RealSessionTest(unittest.TestCase):
             self.assertIs(kwargs["yaw_provider"], kwargs["odometry"])
             self.assertIs(kwargs["odometry"].provider, odom)
         self.assertIsNone(runner._active_episode)
+        if adapted_camera:
+            for event in ('validate_frame','real_map','real_guard','real_planner','camera_close'):
+                self.assertIn(event,events)
         self.assertIn("close", events)
         if start_error or legacy:
             episode.end_remote_session.assert_not_called()
@@ -136,9 +161,14 @@ class RealSessionTest(unittest.TestCase):
             # The mock's STOP reason must match the scenario, like the real state machine.
             self.assertEqual(episode.end_remote_session.call_args.kwargs["status"],
                              "SUCCESS" if expected_success else "FAILURE")
+            if interrupt:
+                self.assertEqual(episode.end_remote_session.call_args.kwargs['reason'],'user_interrupt')
 
     def test_confirmed_stop_lifecycle(self):
         self.exercise_run()
+
+    def test_real_camera_geometry_and_guard_hooks_reuse_same_g3_episode(self):
+        self.exercise_run(adapted_camera=True)
 
     def test_decision_cap_is_not_semantic_success(self):
         self.exercise_run(success=False)
@@ -148,6 +178,9 @@ class RealSessionTest(unittest.TestCase):
 
     def test_control_exception_ends_session_as_failure(self):
         self.exercise_run(update_error=True, success=False)
+
+    def test_ctrl_c_inside_update_runs_cleanup_and_preserves_interrupt_reason(self):
+        self.exercise_run(interrupt=True, success=False)
 
     def test_legacy_mode_does_not_create_session(self):
         self.exercise_run(legacy=True)
@@ -181,12 +214,10 @@ class RealSessionTest(unittest.TestCase):
             events.append("end")
             raise RuntimeError("network unavailable")
         episode.end_remote_session.side_effect = end
-        with patch.object(runner.os, "_exit") as exit_mock:
-            runner._signal_handler(None, None)
+        runner._shutdown_active_resources(reason="user_interrupt")
         self.assertEqual(events, ["close", "end"])
         episode.end_remote_session.assert_called_once_with(
-            status="FAILURE", reason="runner_terminated")
-        exit_mock.assert_called_once_with(0)
+            status="FAILURE", reason="user_interrupt")
         runner._shutdown_active_resources()
         self.assertEqual(episode.end_remote_session.call_count, 1)
 

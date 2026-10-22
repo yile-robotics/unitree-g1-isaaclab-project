@@ -1,0 +1,66 @@
+{
+  "schema_version": 2,
+  "response_type": "end2end_decision",
+  "session_id": "g1_pelvis_check_20261020_182930_fb929806",
+  "observation_id": "g1_pelvis_check_20261020_182930_fb929806_decision_004",
+  "action": "STOP",
+  "direction": "forward",
+  "target": "绿色瓶子",
+  "bbox_2d": [
+    322,
+    301,
+    394,
+    550
+  ],
+  "waypoint": null,
+  "progress_analysis": "已经到达目标绿色瓶子附近，无需进一步前进。",
+  "reasoning": "当前视角中，绿色瓶子清晰可见，距离较近，符合任务要求的停止条件。",
+  "session_status": "ACTIVE",
+  "stop_phase": "STOP_CONFIRMED",
+  "stage_plan_id": "sha256:9908f82ce6a5004e074f9cc8bf5f724b580705b732c67690dd0dc4fbcc7c12c7",
+  "stage_plan_status": "READY",
+  "stage_progress": {
+    "stage_plan_id": "sha256:9908f82ce6a5004e074f9cc8bf5f724b580705b732c67690dd0dc4fbcc7c12c7",
+    "stage_total": 2,
+    "stage_completed": 2,
+    "stage_id": 2,
+    "completed_stage_ids": [
+      0,
+      1
+    ],
+    "current_stage": "COMPLETED",
+    "evidence_of_completion": [
+      "当前视野显示黑色箱子已经到达。",
+      "当前视野显示绿色瓶子已经到达。"
+    ],
+    "final_target_visible": true,
+    "parse_success": true,
+    "parse_error": null,
+    "decision_index": 4,
+    "role_call_index": 9,
+    "role_seed": null,
+    "image_count": 12,
+    "model_backend": "local_navigator_shadow"
+  },
+  "stop_gate": {
+    "verdict": "ALLOW",
+    "completed": true,
+    "missing_subgoal": "",
+    "evidence": [
+      "The agent followed the instruction to walk forward to the black box, which is now visible in the right view.",
+      "The agent executed a left turn as instructed, moving from the corner with the black box to face the main desk area.",
+      "The agent approached the green bottle, which is clearly visible and close in the forward view.",
+      "The agent is positioned directly in front of the green bottle, fulfilling the final goal of the navigation."
+    ],
+    "parse_success": true,
+    "parse_error": null,
+    "decision_index": 4,
+    "role_call_index": 2,
+    "role_seed": null,
+    "image_count": 12,
+    "model_backend": "strong_api",
+    "stop_phase": "STOP_CONFIRMED"
+  },
+  "control": "STOP_CONFIRMED",
+  "next_action": "END_SESSION_SUCCESS"
+}

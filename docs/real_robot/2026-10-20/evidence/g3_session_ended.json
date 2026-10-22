@@ -1,0 +1,10 @@
+{
+  "schema_version": 2,
+  "response_type": "session_ended",
+  "session_id": "g1_pelvis_check_20261020_182930_fb929806",
+  "status": "ENDED",
+  "reason": "stop_confirmed",
+  "final_status": "SUCCESS",
+  "stage_plan_id": "sha256:9908f82ce6a5004e074f9cc8bf5f724b580705b732c67690dd0dc4fbcc7c12c7",
+  "stage_plan_status": "READY"
+}

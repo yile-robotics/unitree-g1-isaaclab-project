@@ -1,0 +1,29 @@
+{
+  "decision_index": 0,
+  "window_index": 1,
+  "action": "NAVIGATE",
+  "timestamp_start": 16192.597194379,
+  "timestamp_end": 16193.701090765,
+  "pose_frame_id": "map",
+  "frame_epoch": 0,
+  "pose_start": [
+    0.8418294071761497,
+    -0.016037233338013785,
+    2.6399662895946348
+  ],
+  "pose_end": [
+    0.4577316926660302,
+    0.11696809799275054,
+    2.5768897858069173
+  ],
+  "displacement_m": 0.40647444255980436,
+  "local_planner_status": "RUNNING",
+  "distance_to_local_goal_start": 2.0387877705772914,
+  "distance_to_local_goal_end": 1.6573576446743945,
+  "map_progress": {
+    "resolution_m": 0.05,
+    "explored_cells": 15784,
+    "new_explored_cells": 370,
+    "traversable_cells": 2301
+  }
+}

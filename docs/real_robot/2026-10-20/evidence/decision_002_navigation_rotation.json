@@ -1,0 +1,26 @@
+{
+  "status": "SETTLED_VERIFIED",
+  "phase": "complete",
+  "direction": "left",
+  "target_yaw_deg": 90.0,
+  "measured_imu_yaw_deg": 81.07927556397163,
+  "measured_slam_yaw_deg": 85.54059590628898,
+  "initial_yaw_rad": 2.5619765838504995,
+  "quarter_turns": [
+    {
+      "imu_deg": 81.07927556397163,
+      "slam_deg": 85.54059590628898,
+      "sign": 1
+    }
+  ],
+  "speed_rad_s": 0.8,
+  "imu_stop_deg": 75.0,
+  "settle_s": 0.5,
+  "elapsed_s": 3.0363916189999145,
+  "quarter_timeout_s": 10.0,
+  "failure_reason": null,
+  "feedback_timed_out": false,
+  "settled_yaw_rad": -2.228243680646361,
+  "settled_error_deg": -4.459404093711011,
+  "settled_tolerance_deg": 20.0
+}

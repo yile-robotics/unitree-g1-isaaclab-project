@@ -1,0 +1,15 @@
+{
+  "pose_frame_id": "map",
+  "frame_epoch": 0,
+  "resolution_m": 0.05,
+  "explored_cells": 15784,
+  "new_explored_cells": 370,
+  "traversable_cells": 2301,
+  "occupied_cells": 6379,
+  "update_count": 14,
+  "decision_index": 0,
+  "window_index": 1,
+  "action": "NAVIGATE",
+  "window_end_action_elapsed_s": 2.5846284509989346,
+  "map_update_failures": 0
+}

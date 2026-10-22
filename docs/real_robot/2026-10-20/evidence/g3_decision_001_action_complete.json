@@ -1,0 +1,48 @@
+{
+  "local_reason": "local_action_completed",
+  "request": {
+    "schema_version": 2,
+    "request_type": "report_execution",
+    "event_type": "action_complete",
+    "session_id": "g1_pelvis_check_20261020_182930_fb929806",
+    "decision_index": 1,
+    "event_id": "g1_pelvis_check_20261020_182930_fb929806:d1:complete",
+    "action": "NAVIGATE",
+    "status": "COMPLETED",
+    "reached_local_goal": true,
+    "timestamp": 16245.525165843,
+    "pose_frame_id": "map",
+    "frame_epoch": 0,
+    "decision_pose": [
+      -0.3041269255040564,
+      0.4079095105295463,
+      2.5974709730722965
+    ],
+    "final_pose": [
+      -0.30965352691846243,
+      0.41130432042375514,
+      2.596545396387439
+    ],
+    "displacement_m": 0.006485989316328913,
+    "planner_result": "REACHED",
+    "waypoint_id": 1
+  },
+  "response": {
+    "schema_version": 2,
+    "response_type": "execution_control",
+    "session_id": "g1_pelvis_check_20261020_182930_fb929806",
+    "decision_index": 1,
+    "control": "CONTINUE",
+    "reason": "execution_completed",
+    "event_type": "action_complete",
+    "stop_phase": null,
+    "stage_plan_id": "sha256:9908f82ce6a5004e074f9cc8bf5f724b580705b732c67690dd0dc4fbcc7c12c7",
+    "stage_plan_status": "READY",
+    "event_id": "g1_pelvis_check_20261020_182930_fb929806:d1:complete",
+    "phase5": {
+      "status": "MONITORING",
+      "candidate": null,
+      "recovery_phase": "NAVIGATOR"
+    }
+  }
+}

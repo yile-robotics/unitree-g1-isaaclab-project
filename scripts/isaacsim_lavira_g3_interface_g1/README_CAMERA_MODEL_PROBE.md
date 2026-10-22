@@ -16,7 +16,7 @@ D415通过USB连接笔记本，确认没有其他程序占用。以下命令在�
   --settings-dir /home/yile/projects/g1_camera_sdk/d415_camera_logs
 ```
 
-看到`RGB-D ready`后，保持服务运行。同一时间只能连接一个接收程序，先关闭旧的`network_camera.py`预览。
+看到`RGB-D ready`后，保持服务运行。10月16日更新后的本机服务最多支持4个接收端，可保持`network_camera.py`实时预览打开；未更新的旧服务仍需先关闭其他接收端。
 
 ## 2. 先采集四方向
 

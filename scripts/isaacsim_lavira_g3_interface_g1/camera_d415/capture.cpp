@@ -29,15 +29,22 @@ int main(int argc, char** argv) {
     try {
         bool rgb_only = false;
         int count = 30;
+        int width = 1280, height = 720;
         fs::path output = "capture";
         for (int i = 1; i < argc; ++i) {
             const std::string arg = argv[i];
             if (arg == "--help") {
-                std::cout << "g1_d435i_probe [--rgb-only] [--frames N] [--output NEW_DIRECTORY]\n"
-                          << "640x480 15fps; warms up 15 frames, captures N frames, saves last.\n";
+                std::cout << "g1_d435i_probe [--rgb-only] [--frames N] [--output NEW_DIRECTORY] [--resolution 720p|480p]\n"
+                          << "Default 1280x720 15fps; warms up 15 frames, captures N frames, saves last.\n";
                 return 0;
             } else if (arg == "--rgb-only") rgb_only = true;
             else if (arg == "--output" && i + 1 < argc) output = argv[++i];
+            else if (arg == "--resolution" && i + 1 < argc) {
+                const std::string value = argv[++i];
+                if (value == "720p") { width = 1280; height = 720; }
+                else if (value == "480p") { width = 640; height = 480; }
+                else throw std::runtime_error("resolution must be 720p or 480p");
+            }
             else if (arg == "--frames" && i + 1 < argc) {
                 const std::string value = argv[++i];
                 size_t used = 0;
@@ -61,8 +68,8 @@ int main(int argc, char** argv) {
         rs2::pipeline pipeline(context);
         rs2::config config;
         config.enable_device(serial);
-        config.enable_stream(RS2_STREAM_COLOR, 640, 480, RS2_FORMAT_RGB8, 15);
-        if (!rgb_only) config.enable_stream(RS2_STREAM_DEPTH, 640, 480, RS2_FORMAT_Z16, 15);
+        config.enable_stream(RS2_STREAM_COLOR, width, height, RS2_FORMAT_RGB8, 15);
+        if (!rgb_only) config.enable_stream(RS2_STREAM_DEPTH, width, height, RS2_FORMAT_Z16, 15);
         const auto profile = pipeline.start(config);
         const auto startup_settings = camera_settings::read_startup(profile);
         rs2::align align_to_color(RS2_STREAM_COLOR);

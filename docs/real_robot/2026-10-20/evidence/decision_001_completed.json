@@ -1,0 +1,45 @@
+{
+  "schema_version": 2,
+  "response_type": "end2end_decision",
+  "session_id": "g1_pelvis_check_20261020_182930_fb929806",
+  "observation_id": "g1_pelvis_check_20261020_182930_fb929806_decision_001",
+  "action": "NAVIGATE",
+  "direction": "forward",
+  "target": "黑色箱子",
+  "bbox_2d": [
+    228,
+    515,
+    632,
+    720
+  ],
+  "waypoint": null,
+  "progress_analysis": "当前导航任务要求先向前走到黑色箱子前。根据当前视野，黑色箱子清晰可见，位于前方。",
+  "reasoning": "黑色箱子在前方视野中，可以直接前进到达目标。继续向前移动，将有助于完成任务的第一阶段。",
+  "goal_after_turn_robot_xy_m": [
+    1.5,
+    0.0
+  ],
+  "goal_distance_m": 1.5,
+  "decision_pose": {
+    "x": -0.3041269255040564,
+    "y": 0.4079095105295463,
+    "yaw": 2.5974709730722965,
+    "timestamp": 16245.207266865
+  },
+  "arrival_pose": {
+    "x": -0.30653196464894894,
+    "y": 0.4163389226134646,
+    "yaw": 2.5968929626496613,
+    "timestamp": 16246.108087381
+  },
+  "executed_world_path_xy": [
+    [
+      -0.3041269255040564,
+      0.4079095105295463
+    ],
+    [
+      -0.30965352691846243,
+      0.41130432042375514
+    ]
+  ]
+}

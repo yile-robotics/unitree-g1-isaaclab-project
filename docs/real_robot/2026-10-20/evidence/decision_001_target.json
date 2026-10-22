@@ -1,0 +1,82 @@
+{
+  "decision_index": 1,
+  "observation_id": "g1_pelvis_check_20261020_182930_fb929806_decision_001",
+  "action": "NAVIGATE",
+  "target": "黑色箱子",
+  "selected_direction": "forward",
+  "displayed_direction": "forward",
+  "source_frame_id": 5187,
+  "source_image_size_wh": [
+    1280,
+    720
+  ],
+  "preview_header_height_px": 116,
+  "source_rgb_file": "decision_001_forward.png",
+  "bbox_xyxy_original": [
+    228,
+    515,
+    632,
+    720
+  ],
+  "bbox_xyxy_clipped": [
+    228,
+    515,
+    632,
+    719
+  ],
+  "projection": {
+    "direction": "forward",
+    "bbox_xyxy": [
+      228,
+      515,
+      632,
+      719
+    ],
+    "pixel_uv": [
+      430,
+      719
+    ],
+    "depth_m": null,
+    "depth_window_xyxy_exclusive": [
+      427,
+      716,
+      434,
+      720
+    ],
+    "valid_depth_count": 0,
+    "goal_after_turn_xy_m": [
+      1.5,
+      0.0
+    ],
+    "used_forward_fallback": true,
+    "coordinate_convention": "robot_after_turn: x=forward,y=left"
+  },
+  "stage_progress": {
+    "stage_plan_id": "sha256:9908f82ce6a5004e074f9cc8bf5f724b580705b732c67690dd0dc4fbcc7c12c7",
+    "stage_total": 2,
+    "stage_completed": 1,
+    "stage_id": 1,
+    "completed_stage_ids": [
+      0
+    ],
+    "current_stage": "向左转走到绿色瓶子前停下",
+    "evidence_of_completion": [
+      "向前走到黑色箱子前"
+    ],
+    "final_target_visible": true,
+    "parse_success": true,
+    "parse_error": null,
+    "decision_index": 1,
+    "role_call_index": 6,
+    "role_seed": null,
+    "image_count": 6,
+    "model_backend": "local_navigator_shadow"
+  },
+  "control": null,
+  "stop_phase": null,
+  "navigation_accepted": true,
+  "record_mode": "live_decision",
+  "image_file": "decision_001_target.png",
+  "metadata_file": "decision_001_target.json",
+  "coordinate_note": "bbox/pixel_uv use original RGB pixels; local goal uses unchanged nominal forward/left axes, not map coordinates"
+}

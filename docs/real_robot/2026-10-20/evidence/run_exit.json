@@ -1,0 +1,37 @@
+{
+  "session_id": "g1_pelvis_check_20261020_182930_fb929806",
+  "exit_reason": "runner_completed",
+  "error": null,
+  "state": "stopped",
+  "decision_index": 4,
+  "failure_reason": null,
+  "session_success_reason": "stop_confirmed",
+  "final_pose": {
+    "x": -0.7509356271373462,
+    "y": -0.4295484399651804,
+    "yaw": -2.4407616976319106,
+    "timestamp": 16410.470277334
+  },
+  "final_pose_source": "fresh_provider_read",
+  "pose_frame_id": "map",
+  "frame_epoch": 0,
+  "final_pose_age_s": 0.055401707999408245,
+  "pose_timestamp_convention": "host monotonic receive time, not exposure time",
+  "last_command_before_shutdown": [
+    0.0,
+    0.0,
+    0.0
+  ],
+  "stop_request": {
+    "requested_monotonic_s": 16410.322788557,
+    "available": true,
+    "call_returned": true,
+    "physical_stop_confirmed": false,
+    "returned_monotonic_s": 16410.525641233
+  },
+  "physical_stop_confirmed": false,
+  "phase": "CLEANUP_FINISHED",
+  "remote_end_status": "CONFIRMED",
+  "cleanup_errors": [],
+  "cleanup_finished_monotonic_s": 16411.022705804
+}

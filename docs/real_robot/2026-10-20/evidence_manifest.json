@@ -1,0 +1,458 @@
+[
+  {
+    "file": "decision_000_completed.json",
+    "source": "/home/yile/projects/unitree-g1-isaaclab-project/outputs/g1_real_unified_vln/g1_pelvis_check_20261020_182930_fb929806/run_20261020_182933_574664/decision_000_completed.json",
+    "bytes": 1585,
+    "sha256": "d9e6147bd6d1defd5c5389fb754d0da320ccd20c45092642aa7af515464e56f5"
+  },
+  {
+    "file": "decision_000_overlay.json",
+    "source": "/home/yile/projects/unitree-g1-isaaclab-project/outputs/g1_real_unified_vln/g1_pelvis_check_20261020_182930_fb929806/run_20261020_182933_574664/decision_000_overlay.json",
+    "bytes": 196,
+    "sha256": "0d37990d69b7815a344102fb7b5eac40a2d612bb4d2a58f69d767efeac0fe3ad"
+  },
+  {
+    "file": "decision_000_panorama_capture.json",
+    "source": "/home/yile/projects/unitree-g1-isaaclab-project/outputs/g1_real_unified_vln/g1_pelvis_check_20261020_182930_fb929806/run_20261020_182933_574664/decision_000_panorama_capture.json",
+    "bytes": 37623,
+    "sha256": "6e9e656b6df0f9e5d583e4534c8c2bfca272dbed08e0293f47b1af07f49d20f6"
+  },
+  {
+    "file": "decision_000_plan.json",
+    "source": "/home/yile/projects/unitree-g1-isaaclab-project/outputs/g1_real_unified_vln/g1_pelvis_check_20261020_182930_fb929806/run_20261020_182933_574664/decision_000_plan.json",
+    "bytes": 9018,
+    "sha256": "c5ed26b0042742dc2dd7b40bc2352119a7988abee7a82ff191a2258322636121"
+  },
+  {
+    "file": "decision_000_projection.json",
+    "source": "/home/yile/projects/unitree-g1-isaaclab-project/outputs/g1_real_unified_vln/g1_pelvis_check_20261020_182930_fb929806/run_20261020_182933_574664/decision_000_projection.json",
+    "bytes": 437,
+    "sha256": "0929f7446cad87882431209c39c812fe7db07ce900e2d6faca0e47fc6c0afc31"
+  },
+  {
+    "file": "decision_000_request.json",
+    "source": "/home/yile/projects/unitree-g1-isaaclab-project/outputs/g1_real_unified_vln/g1_pelvis_check_20261020_182930_fb929806/run_20261020_182933_574664/decision_000_request.json",
+    "bytes": 603,
+    "sha256": "34329526c35974ba311093a3472b3f59a880c2e96ecf561f3604ec0b3658a614"
+  },
+  {
+    "file": "decision_000_response.json",
+    "source": "/home/yile/projects/unitree-g1-isaaclab-project/outputs/g1_real_unified_vln/g1_pelvis_check_20261020_182930_fb929806/run_20261020_182933_574664/decision_000_response.json",
+    "bytes": 1403,
+    "sha256": "34424a0552d8e2410ad36bc39404770fc4b38b25048d137c6522931971baa7b9"
+  },
+  {
+    "file": "decision_000_target.json",
+    "source": "/home/yile/projects/unitree-g1-isaaclab-project/outputs/g1_real_unified_vln/g1_pelvis_check_20261020_182930_fb929806/run_20261020_182933_574664/decision_000_target.json",
+    "bytes": 1893,
+    "sha256": "f355ca00d9156ad5d0def049850a844c8323e6d9e01834d665023e0f50b6677d"
+  },
+  {
+    "file": "decision_000_target.png",
+    "source": "/home/yile/projects/unitree-g1-isaaclab-project/outputs/g1_real_unified_vln/g1_pelvis_check_20261020_182930_fb929806/run_20261020_182933_574664/decision_000_target.png",
+    "bytes": 1193734,
+    "sha256": "9dbd4ed62efd4c842fe3e3de7983280ee659a6eae559caef57306b66e78fa39a"
+  },
+  {
+    "file": "decision_001_completed.json",
+    "source": "/home/yile/projects/unitree-g1-isaaclab-project/outputs/g1_real_unified_vln/g1_pelvis_check_20261020_182930_fb929806/run_20261020_182933_574664/decision_001_completed.json",
+    "bytes": 1195,
+    "sha256": "bd8e02a08bd827253350b05dba6ce8a94e0e028622e78b6373145122df78fe0d"
+  },
+  {
+    "file": "decision_001_overlay.json",
+    "source": "/home/yile/projects/unitree-g1-isaaclab-project/outputs/g1_real_unified_vln/g1_pelvis_check_20261020_182930_fb929806/run_20261020_182933_574664/decision_001_overlay.json",
+    "bytes": 196,
+    "sha256": "9b42fcd18079b57204b6fcc58cb91c07869d3f1b76607dbdcafecdaf7d90234e"
+  },
+  {
+    "file": "decision_001_panorama_capture.json",
+    "source": "/home/yile/projects/unitree-g1-isaaclab-project/outputs/g1_real_unified_vln/g1_pelvis_check_20261020_182930_fb929806/run_20261020_182933_574664/decision_001_panorama_capture.json",
+    "bytes": 37626,
+    "sha256": "7d931d9d5aae217e77c33a56735e9d5148483b0127656053ab22869be05d3933"
+  },
+  {
+    "file": "decision_001_plan.json",
+    "source": "/home/yile/projects/unitree-g1-isaaclab-project/outputs/g1_real_unified_vln/g1_pelvis_check_20261020_182930_fb929806/run_20261020_182933_574664/decision_001_plan.json",
+    "bytes": 7690,
+    "sha256": "21a2073aafc726076a8855565f769584c3de95418c9a9ae3a1c1e786df56c8af"
+  },
+  {
+    "file": "decision_001_projection.json",
+    "source": "/home/yile/projects/unitree-g1-isaaclab-project/outputs/g1_real_unified_vln/g1_pelvis_check_20261020_182930_fb929806/run_20261020_182933_574664/decision_001_projection.json",
+    "bytes": 391,
+    "sha256": "fb681f63d434300fbcd3408555bb944697a2b3a2b7b17c6d1d9c6541da488786"
+  },
+  {
+    "file": "decision_001_request.json",
+    "source": "/home/yile/projects/unitree-g1-isaaclab-project/outputs/g1_real_unified_vln/g1_pelvis_check_20261020_182930_fb929806/run_20261020_182933_574664/decision_001_request.json",
+    "bytes": 820,
+    "sha256": "2670e81e0c1e0e40d5e505ba8be3be5efec7b946b140da887d8ab730f14bf947"
+  },
+  {
+    "file": "decision_001_response.json",
+    "source": "/home/yile/projects/unitree-g1-isaaclab-project/outputs/g1_real_unified_vln/g1_pelvis_check_20261020_182930_fb929806/run_20261020_182933_574664/decision_001_response.json",
+    "bytes": 2588,
+    "sha256": "45eaf8d88fc0ba6445f0589cfb220719f2ec9bfc750a63f962f0a564ab830f6d"
+  },
+  {
+    "file": "decision_001_target.json",
+    "source": "/home/yile/projects/unitree-g1-isaaclab-project/outputs/g1_real_unified_vln/g1_pelvis_check_20261020_182930_fb929806/run_20261020_182933_574664/decision_001_target.json",
+    "bytes": 1909,
+    "sha256": "28109d8ce5ec6722545e8ae34d45c9325435fac7dff49dc178877b96c3959209"
+  },
+  {
+    "file": "decision_001_target.png",
+    "source": "/home/yile/projects/unitree-g1-isaaclab-project/outputs/g1_real_unified_vln/g1_pelvis_check_20261020_182930_fb929806/run_20261020_182933_574664/decision_001_target.png",
+    "bytes": 1106760,
+    "sha256": "d1e5666bb7fb5f17a190fd9f7cab63ebea2fd3422a934eb24050e161ee743e06"
+  },
+  {
+    "file": "decision_002_completed.json",
+    "source": "/home/yile/projects/unitree-g1-isaaclab-project/outputs/g1_real_unified_vln/g1_pelvis_check_20261020_182930_fb929806/run_20261020_182933_574664/decision_002_completed.json",
+    "bytes": 1496,
+    "sha256": "fd4811d1fc0a21b89d99623302b1fc3c6ff59e7cb53a334a8bc5f42bd83ee74a"
+  },
+  {
+    "file": "decision_002_navigation_rotation.json",
+    "source": "/home/yile/projects/unitree-g1-isaaclab-project/outputs/g1_real_unified_vln/g1_pelvis_check_20261020_182930_fb929806/run_20261020_182933_574664/decision_002_navigation_rotation.json",
+    "bytes": 668,
+    "sha256": "b17a3afee101a23a0c02893d51b9a4668c32f792155a7e38a61b8bd2fe18eeaa"
+  },
+  {
+    "file": "decision_002_overlay.json",
+    "source": "/home/yile/projects/unitree-g1-isaaclab-project/outputs/g1_real_unified_vln/g1_pelvis_check_20261020_182930_fb929806/run_20261020_182933_574664/decision_002_overlay.json",
+    "bytes": 193,
+    "sha256": "feb5ab49ce4b76e634afba68a0a81467ab3293bc1ad81f2af750c7629048d9ca"
+  },
+  {
+    "file": "decision_002_panorama_capture.json",
+    "source": "/home/yile/projects/unitree-g1-isaaclab-project/outputs/g1_real_unified_vln/g1_pelvis_check_20261020_182930_fb929806/run_20261020_182933_574664/decision_002_panorama_capture.json",
+    "bytes": 37624,
+    "sha256": "1e3a3e03029d6b6ed329b0a9e8e2582af222aa14cdc52d473e96db23382c91ab"
+  },
+  {
+    "file": "decision_002_plan.json",
+    "source": "/home/yile/projects/unitree-g1-isaaclab-project/outputs/g1_real_unified_vln/g1_pelvis_check_20261020_182930_fb929806/run_20261020_182933_574664/decision_002_plan.json",
+    "bytes": 8531,
+    "sha256": "6b545957c2c29f322278ad98fabf90fc789d95f6701750ea719737183b2bfd51"
+  },
+  {
+    "file": "decision_002_projection.json",
+    "source": "/home/yile/projects/unitree-g1-isaaclab-project/outputs/g1_real_unified_vln/g1_pelvis_check_20261020_182930_fb929806/run_20261020_182933_574664/decision_002_projection.json",
+    "bytes": 433,
+    "sha256": "383f0ce5767f987d26ebaab936d7f1c5ef0080a28df6c52cac5cdee0638c945d"
+  },
+  {
+    "file": "decision_002_request.json",
+    "source": "/home/yile/projects/unitree-g1-isaaclab-project/outputs/g1_real_unified_vln/g1_pelvis_check_20261020_182930_fb929806/run_20261020_182933_574664/decision_002_request.json",
+    "bytes": 1037,
+    "sha256": "cfe0268d02a3c3d85e3eb219707982ee6e20a5804e348d6f93fdcc91f24b27e0"
+  },
+  {
+    "file": "decision_002_response.json",
+    "source": "/home/yile/projects/unitree-g1-isaaclab-project/outputs/g1_real_unified_vln/g1_pelvis_check_20261020_182930_fb929806/run_20261020_182933_574664/decision_002_response.json",
+    "bytes": 1569,
+    "sha256": "3a9328862447e41efd2943c55fa90afa2b494311020aff50d81c89450d4cfe67"
+  },
+  {
+    "file": "decision_002_target.json",
+    "source": "/home/yile/projects/unitree-g1-isaaclab-project/outputs/g1_real_unified_vln/g1_pelvis_check_20261020_182930_fb929806/run_20261020_182933_574664/decision_002_target.json",
+    "bytes": 1942,
+    "sha256": "cf702ffade0071d2cfadf18e98320892d39e42a78670edf4e31179ffcb6028b3"
+  },
+  {
+    "file": "decision_002_target.png",
+    "source": "/home/yile/projects/unitree-g1-isaaclab-project/outputs/g1_real_unified_vln/g1_pelvis_check_20261020_182930_fb929806/run_20261020_182933_574664/decision_002_target.png",
+    "bytes": 1319486,
+    "sha256": "c08533da0ce676b3363ba40eb87428a2c9a0d0006f86f6e05c56d438b6a2051d"
+  },
+  {
+    "file": "decision_003_completed.json",
+    "source": "/home/yile/projects/unitree-g1-isaaclab-project/outputs/g1_real_unified_vln/g1_pelvis_check_20261020_182930_fb929806/run_20261020_182933_574664/decision_003_completed.json",
+    "bytes": 1178,
+    "sha256": "39896386feb9aa143e860d0b37781d1304bf07230aad1af2d153884f715efff0"
+  },
+  {
+    "file": "decision_003_overlay.json",
+    "source": "/home/yile/projects/unitree-g1-isaaclab-project/outputs/g1_real_unified_vln/g1_pelvis_check_20261020_182930_fb929806/run_20261020_182933_574664/decision_003_overlay.json",
+    "bytes": 196,
+    "sha256": "01a49e6be66d141dbbb099618ff5a43a8bdcb18b50aabe65fd24bc1af49a2ca9"
+  },
+  {
+    "file": "decision_003_panorama_capture.json",
+    "source": "/home/yile/projects/unitree-g1-isaaclab-project/outputs/g1_real_unified_vln/g1_pelvis_check_20261020_182930_fb929806/run_20261020_182933_574664/decision_003_panorama_capture.json",
+    "bytes": 37612,
+    "sha256": "a98fefccebaf40b6925f31d575e7c6ef74b82e041f0607b1c4e14e27ba50e087"
+  },
+  {
+    "file": "decision_003_plan.json",
+    "source": "/home/yile/projects/unitree-g1-isaaclab-project/outputs/g1_real_unified_vln/g1_pelvis_check_20261020_182930_fb929806/run_20261020_182933_574664/decision_003_plan.json",
+    "bytes": 8148,
+    "sha256": "90e89ce1ffcd54a0339da351f33963b7e4063f390a0a92076b6e811838c67a0f"
+  },
+  {
+    "file": "decision_003_projection.json",
+    "source": "/home/yile/projects/unitree-g1-isaaclab-project/outputs/g1_real_unified_vln/g1_pelvis_check_20261020_182930_fb929806/run_20261020_182933_574664/decision_003_projection.json",
+    "bytes": 437,
+    "sha256": "9f0aa91b2f1b620c2a9a2122ee8ab736f8bf9b949b11f2ce653559e1098ffa93"
+  },
+  {
+    "file": "decision_003_request.json",
+    "source": "/home/yile/projects/unitree-g1-isaaclab-project/outputs/g1_real_unified_vln/g1_pelvis_check_20261020_182930_fb929806/run_20261020_182933_574664/decision_003_request.json",
+    "bytes": 1250,
+    "sha256": "fc9d0f9de35708c6d7f0a29fca7350bfe4b202d92cb0d08134f5538c28a13f7a"
+  },
+  {
+    "file": "decision_003_response.json",
+    "source": "/home/yile/projects/unitree-g1-isaaclab-project/outputs/g1_real_unified_vln/g1_pelvis_check_20261020_182930_fb929806/run_20261020_182933_574664/decision_003_response.json",
+    "bytes": 2506,
+    "sha256": "576f7e1b02754fd615bc2b61395d14103a21880cb0d8d6fb67af10ca26acd063"
+  },
+  {
+    "file": "decision_003_target.json",
+    "source": "/home/yile/projects/unitree-g1-isaaclab-project/outputs/g1_real_unified_vln/g1_pelvis_check_20261020_182930_fb929806/run_20261020_182933_574664/decision_003_target.json",
+    "bytes": 1956,
+    "sha256": "51c100576a46d85e0309b725ae81a2677e5eb3881d237ccfef75480619cd1efe"
+  },
+  {
+    "file": "decision_003_target.png",
+    "source": "/home/yile/projects/unitree-g1-isaaclab-project/outputs/g1_real_unified_vln/g1_pelvis_check_20261020_182930_fb929806/run_20261020_182933_574664/decision_003_target.png",
+    "bytes": 1325619,
+    "sha256": "ce4073d73870aae76c52a7072507c5009a54cb32e8faf9a9020d8f14e63b9bb4"
+  },
+  {
+    "file": "decision_004_panorama_capture.json",
+    "source": "/home/yile/projects/unitree-g1-isaaclab-project/outputs/g1_real_unified_vln/g1_pelvis_check_20261020_182930_fb929806/run_20261020_182933_574664/decision_004_panorama_capture.json",
+    "bytes": 37625,
+    "sha256": "624ff538e51cf2b6cc97014a51e3642f82279524ae22f567f7a5efe5d9fd7276"
+  },
+  {
+    "file": "decision_004_request.json",
+    "source": "/home/yile/projects/unitree-g1-isaaclab-project/outputs/g1_real_unified_vln/g1_pelvis_check_20261020_182930_fb929806/run_20261020_182933_574664/decision_004_request.json",
+    "bytes": 1465,
+    "sha256": "8b8cb36264f97d3de6bad5d691882e98deaf474a2fba8c64f3a937024c720166"
+  },
+  {
+    "file": "decision_004_response.json",
+    "source": "/home/yile/projects/unitree-g1-isaaclab-project/outputs/g1_real_unified_vln/g1_pelvis_check_20261020_182930_fb929806/run_20261020_182933_574664/decision_004_response.json",
+    "bytes": 2273,
+    "sha256": "819ae87bc4be39ba12f507276aa3c525c754ffa9d162ebf7197d7e478a50ca40"
+  },
+  {
+    "file": "decision_004_target.json",
+    "source": "/home/yile/projects/unitree-g1-isaaclab-project/outputs/g1_real_unified_vln/g1_pelvis_check_20261020_182930_fb929806/run_20261020_182933_574664/decision_004_target.json",
+    "bytes": 1547,
+    "sha256": "9a586ea8adb0c2f42c65dabd3e6e6379bae37363d00cfc3a15d1b41ae892c224"
+  },
+  {
+    "file": "decision_004_target.png",
+    "source": "/home/yile/projects/unitree-g1-isaaclab-project/outputs/g1_real_unified_vln/g1_pelvis_check_20261020_182930_fb929806/run_20261020_182933_574664/decision_004_target.png",
+    "bytes": 1368149,
+    "sha256": "954a875846a03173b135848e5caa53377e0c3eca2bbec1aeb2b8d5b9bfa82ff7"
+  },
+  {
+    "file": "display_motion.json",
+    "source": "/home/yile/projects/unitree-g1-isaaclab-project/outputs/g1_real_unified_vln/g1_pelvis_check_20261020_182930_fb929806/run_20261020_182933_574664/display_motion.json",
+    "bytes": 55,
+    "sha256": "db64fbdfee6c8df9148fc9d966a8c5180df8630eba5675ab02b803089aa763b0"
+  },
+  {
+    "file": "execution_events.jsonl",
+    "source": "/home/yile/projects/unitree-g1-isaaclab-project/outputs/g1_real_unified_vln/g1_pelvis_check_20261020_182930_fb929806/run_20261020_182933_574664/execution_events.jsonl",
+    "bytes": 7505794,
+    "sha256": "f5f9e53401c67ab8cd81f4396f65dceb0ac79bf2022919db5444dab3eee0fdf7"
+  },
+  {
+    "file": "execution_tail.json",
+    "source": "/home/yile/projects/unitree-g1-isaaclab-project/outputs/g1_real_unified_vln/g1_pelvis_check_20261020_182930_fb929806/run_20261020_182933_574664/execution_tail.json",
+    "bytes": 637,
+    "sha256": "b725c2ebcccdbe8e07cca0427971ebf3745af42b7681dbdfaa7052a805fc9ef0"
+  },
+  {
+    "file": "follow_live.json",
+    "source": "/home/yile/projects/unitree-g1-isaaclab-project/outputs/g1_real_unified_vln/g1_pelvis_check_20261020_182930_fb929806/run_20261020_182933_574664/follow_live.json",
+    "bytes": 112,
+    "sha256": "838c1f0f47c100d0b12533cd6d1624162a7bf676879ac40c62b9e5ce9e756cdf"
+  },
+  {
+    "file": "g3_decision_000_action_complete.json",
+    "source": "/home/yile/projects/unitree-g1-isaaclab-project/outputs/g1_real_unified_vln/g1_pelvis_check_20261020_182930_fb929806/run_20261020_182933_574664/g3_decision_000_action_complete.json",
+    "bytes": 1422,
+    "sha256": "4fa5c33503ed2cb82f6d45acecd0e6c569d8606c31309cb092e52fc774c35268"
+  },
+  {
+    "file": "g3_decision_000_action_complete_request.json",
+    "source": "/home/yile/projects/unitree-g1-isaaclab-project/outputs/g1_real_unified_vln/g1_pelvis_check_20261020_182930_fb929806/run_20261020_182933_574664/g3_decision_000_action_complete_request.json",
+    "bytes": 468,
+    "sha256": "d202ed39de2b83dc57d047885a7218b898977f5ef1aec087d9937be3cc2c88f5"
+  },
+  {
+    "file": "g3_decision_000_motion_0000.json",
+    "source": "/home/yile/projects/unitree-g1-isaaclab-project/outputs/g1_real_unified_vln/g1_pelvis_check_20261020_182930_fb929806/run_20261020_182933_574664/g3_decision_000_motion_0000.json",
+    "bytes": 1615,
+    "sha256": "b8fe5409f31a6ba1b0fed997c4575438c1847553b87e1f6c6e9f5c0896542d9b"
+  },
+  {
+    "file": "g3_decision_000_motion_0000_request.json",
+    "source": "/home/yile/projects/unitree-g1-isaaclab-project/outputs/g1_real_unified_vln/g1_pelvis_check_20261020_182930_fb929806/run_20261020_182933_574664/g3_decision_000_motion_0000_request.json",
+    "bytes": 701,
+    "sha256": "89655efce553cea1a0311b0279faf2884a6e51790bdb20d5659cf084d144ed2b"
+  },
+  {
+    "file": "g3_decision_000_motion_0001.json",
+    "source": "/home/yile/projects/unitree-g1-isaaclab-project/outputs/g1_real_unified_vln/g1_pelvis_check_20261020_182930_fb929806/run_20261020_182933_574664/g3_decision_000_motion_0001.json",
+    "bytes": 1619,
+    "sha256": "fa3fa25580f3f304feb1bd6bb3d8696455528d43c2a1d07b5dc2c1df1bfaa0ee"
+  },
+  {
+    "file": "g3_decision_000_motion_0001_request.json",
+    "source": "/home/yile/projects/unitree-g1-isaaclab-project/outputs/g1_real_unified_vln/g1_pelvis_check_20261020_182930_fb929806/run_20261020_182933_574664/g3_decision_000_motion_0001_request.json",
+    "bytes": 705,
+    "sha256": "dd61741e649607b93e0f287dd77a7f148fe657d8a51d89af6fe1d1de589214d7"
+  },
+  {
+    "file": "g3_decision_000_motion_0002.json",
+    "source": "/home/yile/projects/unitree-g1-isaaclab-project/outputs/g1_real_unified_vln/g1_pelvis_check_20261020_182930_fb929806/run_20261020_182933_574664/g3_decision_000_motion_0002.json",
+    "bytes": 1615,
+    "sha256": "41d036aa09f1b3909b9a0cac5e121267f42673bfaf15d3ed68b6bfafe72ea2a2"
+  },
+  {
+    "file": "g3_decision_000_motion_0002_request.json",
+    "source": "/home/yile/projects/unitree-g1-isaaclab-project/outputs/g1_real_unified_vln/g1_pelvis_check_20261020_182930_fb929806/run_20261020_182933_574664/g3_decision_000_motion_0002_request.json",
+    "bytes": 701,
+    "sha256": "9b0aefa967f9ed11e3024bec5785782c15e46df2459b3b09c5aa3528fee2a508"
+  },
+  {
+    "file": "g3_decision_001_action_complete.json",
+    "source": "/home/yile/projects/unitree-g1-isaaclab-project/outputs/g1_real_unified_vln/g1_pelvis_check_20261020_182930_fb929806/run_20261020_182933_574664/g3_decision_001_action_complete.json",
+    "bytes": 1423,
+    "sha256": "07e882aadc954e08d38cfe8e2d20492f63148a784624bc4ce12a80295695a2d2"
+  },
+  {
+    "file": "g3_decision_001_action_complete_request.json",
+    "source": "/home/yile/projects/unitree-g1-isaaclab-project/outputs/g1_real_unified_vln/g1_pelvis_check_20261020_182930_fb929806/run_20261020_182933_574664/g3_decision_001_action_complete_request.json",
+    "bytes": 469,
+    "sha256": "4e11153cdd7e95cfab1a295e8b8fe0b353c60635dc47070c504998df39776f03"
+  },
+  {
+    "file": "g3_decision_002_action_complete.json",
+    "source": "/home/yile/projects/unitree-g1-isaaclab-project/outputs/g1_real_unified_vln/g1_pelvis_check_20261020_182930_fb929806/run_20261020_182933_574664/g3_decision_002_action_complete.json",
+    "bytes": 1422,
+    "sha256": "88ebc142ebbdb2575483f54ea18e8c362427ee44231b1cc07335c8b5c5d7c5f1"
+  },
+  {
+    "file": "g3_decision_002_action_complete_request.json",
+    "source": "/home/yile/projects/unitree-g1-isaaclab-project/outputs/g1_real_unified_vln/g1_pelvis_check_20261020_182930_fb929806/run_20261020_182933_574664/g3_decision_002_action_complete_request.json",
+    "bytes": 468,
+    "sha256": "01a195f7a5335d494cb4244e99a6c205fb1a17ea9cdd2f97848e2dd4027b7809"
+  },
+  {
+    "file": "g3_decision_002_motion_0000.json",
+    "source": "/home/yile/projects/unitree-g1-isaaclab-project/outputs/g1_real_unified_vln/g1_pelvis_check_20261020_182930_fb929806/run_20261020_182933_574664/g3_decision_002_motion_0000.json",
+    "bytes": 1623,
+    "sha256": "8813a3c47ecfcc9ee7a42d0fd9931cc7bfd4f84d3c6ac07cadbdf84e7535dd8f"
+  },
+  {
+    "file": "g3_decision_002_motion_0000_request.json",
+    "source": "/home/yile/projects/unitree-g1-isaaclab-project/outputs/g1_real_unified_vln/g1_pelvis_check_20261020_182930_fb929806/run_20261020_182933_574664/g3_decision_002_motion_0000_request.json",
+    "bytes": 709,
+    "sha256": "2c79072ec3f08eee20ed71f14815a3a70228baa7ca8499da279db25c5b4e4f05"
+  },
+  {
+    "file": "g3_decision_003_action_complete.json",
+    "source": "/home/yile/projects/unitree-g1-isaaclab-project/outputs/g1_real_unified_vln/g1_pelvis_check_20261020_182930_fb929806/run_20261020_182933_574664/g3_decision_003_action_complete.json",
+    "bytes": 1428,
+    "sha256": "ad3ac3fdff1e7f40aecadada7535430c49113e43630930d248bebcbc2549e8fe"
+  },
+  {
+    "file": "g3_decision_003_action_complete_request.json",
+    "source": "/home/yile/projects/unitree-g1-isaaclab-project/outputs/g1_real_unified_vln/g1_pelvis_check_20261020_182930_fb929806/run_20261020_182933_574664/g3_decision_003_action_complete_request.json",
+    "bytes": 474,
+    "sha256": "027c6458e6c57e0bbc69daf846cdd257a1b2e33a22420b0536a285fabfa4c912"
+  },
+  {
+    "file": "g3_health.json",
+    "source": "/home/yile/projects/unitree-g1-isaaclab-project/outputs/g1_real_unified_vln/g1_pelvis_check_20261020_182930_fb929806/run_20261020_182933_574664/g3_health.json",
+    "bytes": 4823,
+    "sha256": "743997ab929dc4c1f094f4d03c29de91617490632e324ab4612add2379ec10f0"
+  },
+  {
+    "file": "g3_session_end_attempt.json",
+    "source": "/home/yile/projects/unitree-g1-isaaclab-project/outputs/g1_real_unified_vln/g1_pelvis_check_20261020_182930_fb929806/run_20261020_182933_574664/g3_session_end_attempt.json",
+    "bytes": 464,
+    "sha256": "ab9ff444010afda248d14ccf7488a922def7669ad89a8afc4ab44e28286a0c92"
+  },
+  {
+    "file": "g3_session_end_request.json",
+    "source": "/home/yile/projects/unitree-g1-isaaclab-project/outputs/g1_real_unified_vln/g1_pelvis_check_20261020_182930_fb929806/run_20261020_182933_574664/g3_session_end_request.json",
+    "bytes": 55,
+    "sha256": "2d967c86bef220bc7a1039ce0a6ad9e3ce3422baff971f04bef0862e0e01f1ca"
+  },
+  {
+    "file": "g3_session_ended.json",
+    "source": "/home/yile/projects/unitree-g1-isaaclab-project/outputs/g1_real_unified_vln/g1_pelvis_check_20261020_182930_fb929806/run_20261020_182933_574664/g3_session_ended.json",
+    "bytes": 327,
+    "sha256": "5f3221540c971fc80ce5b0fb499c90aeb73267f1e5f26d8da6f086c905a8a829"
+  },
+  {
+    "file": "g3_session_started.json",
+    "source": "/home/yile/projects/unitree-g1-isaaclab-project/outputs/g1_real_unified_vln/g1_pelvis_check_20261020_182930_fb929806/run_20261020_182933_574664/g3_session_started.json",
+    "bytes": 596,
+    "sha256": "976f6c91a59278a7b28f7fc52d9f8eed8ef54f8d6b84765edf80927ef9d9c810"
+  },
+  {
+    "file": "map_progress_decision_000_window_0000.json",
+    "source": "/home/yile/projects/unitree-g1-isaaclab-project/outputs/g1_real_unified_vln/g1_pelvis_check_20261020_182930_fb929806/run_20261020_182933_574664/map_progress_decision_000_window_0000.json",
+    "bytes": 353,
+    "sha256": "72ccaa807c17f544ce03d97b75a5652c86d99a9fc4d6094dec92ad2efa397f49"
+  },
+  {
+    "file": "map_progress_decision_000_window_0001.json",
+    "source": "/home/yile/projects/unitree-g1-isaaclab-project/outputs/g1_real_unified_vln/g1_pelvis_check_20261020_182930_fb929806/run_20261020_182933_574664/map_progress_decision_000_window_0001.json",
+    "bytes": 354,
+    "sha256": "967988cdfccfbec93862751b7ba5e164030830ccec3a36d58868421d0adc856b"
+  },
+  {
+    "file": "map_progress_decision_000_window_0002.json",
+    "source": "/home/yile/projects/unitree-g1-isaaclab-project/outputs/g1_real_unified_vln/g1_pelvis_check_20261020_182930_fb929806/run_20261020_182933_574664/map_progress_decision_000_window_0002.json",
+    "bytes": 352,
+    "sha256": "a533df53d759533a57c5e5de64805684ac60c1fab80f67f5f6d6b6287e59820a"
+  },
+  {
+    "file": "map_progress_decision_002_window_0000.json",
+    "source": "/home/yile/projects/unitree-g1-isaaclab-project/outputs/g1_real_unified_vln/g1_pelvis_check_20261020_182930_fb929806/run_20261020_182933_574664/map_progress_decision_002_window_0000.json",
+    "bytes": 355,
+    "sha256": "3772a87c7c62a31793e629fa1c0e54dfbddbeea864602683508022ab811132ff"
+  },
+  {
+    "file": "real_geometry_assumptions.json",
+    "source": "/home/yile/projects/unitree-g1-isaaclab-project/outputs/g1_real_unified_vln/g1_pelvis_check_20261020_182930_fb929806/run_20261020_182933_574664/real_geometry_assumptions.json",
+    "bytes": 2249,
+    "sha256": "cc0ed9f1d2672fa11995bb4dbfc85d5e995e92171878382b53f625718be531d6"
+  },
+  {
+    "file": "real_input_guard.json",
+    "source": "/home/yile/projects/unitree-g1-isaaclab-project/outputs/g1_real_unified_vln/g1_pelvis_check_20261020_182930_fb929806/run_20261020_182933_574664/real_input_guard.json",
+    "bytes": 261,
+    "sha256": "9f02b41adb20336e7ae01a4c9e6b677cdcc785303488d0a0c7aec5c46aad63cf"
+  },
+  {
+    "file": "run_exit.json",
+    "source": "/home/yile/projects/unitree-g1-isaaclab-project/outputs/g1_real_unified_vln/g1_pelvis_check_20261020_182930_fb929806/run_20261020_182933_574664/run_exit.json",
+    "bytes": 1046,
+    "sha256": "bcddb393358c990f85038e146ece9a595bdeb2b42633596bc3668d1489b50d9c"
+  },
+  {
+    "file": "targets.html",
+    "source": "/home/yile/projects/unitree-g1-isaaclab-project/outputs/g1_real_unified_vln/g1_pelvis_check_20261020_182930_fb929806/run_20261020_182933_574664/targets.html",
+    "bytes": 4225,
+    "sha256": "44594f03c1176c98e6ad57edbff3147c3b009d7ce71f47c58541c3bc943501b4"
+  },
+  {
+    "file": "timing_summary.json",
+    "source": "/home/yile/projects/unitree-g1-isaaclab-project/outputs/g1_real_unified_vln/g1_pelvis_check_20261020_182930_fb929806/run_20261020_182933_574664/timing_summary.json",
+    "bytes": 600,
+    "sha256": "c79fe1896f870ddf01e04f83bd9f6ebc3850a79b49b260cab549f2e53ffc9c65"
+  }
+]

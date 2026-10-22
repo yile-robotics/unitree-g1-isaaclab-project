@@ -1,5 +1,10 @@
 # 真机 G3 Session 接入
 
+[完整多轮真机测试：2026-10-20用户确认base_link=pelvis，名义骨盆离地更正为约0.80m](README_G1_PELVIS_VLN.md)。
+该入口默认只读，显式`--execute`才运动；相机外参仍保留候选状态，高度为站立粗测值。
+
+[复用仿真实现进行一次真机局部跟随：模块对应、单次参数与尚缺的真机几何](README_G1_ONCE_FOLLOW.md)。
+
 配置 `--odometry-topic` 后，机器人平面世界位置 `(x,y)` 和地图 yaw 来自 SLAM：
 同一个位姿源供轨迹跟随、目标转向、全景采集位姿、历史轨迹及执行上报使用。保留 SLAM 原始
 世界 x/y，不对大坐标重新归零。每轮控制前后检查位姿，失效时终止导航并停车，不继续
@@ -15,7 +20,7 @@ PREEMPT、Recovery、BACKTRACK 和执行上报复用 `episode.py`。仿真仍创
 
 ## 真机全景：已接入实测旋转与采图顺序
 
-`unified_vln/real_episode.py` 只替换真机四段全景采集：先主动停车、等待后采初始前方；
+`unified_vln/real_episode.py`替换真机四段全景采集：先主动停车、等待后采初始前方；
 每段持续输出 `wz=0.8 rad/s`，`rt/lowstate` IMU累计到75°时调用 `dds.stop()`。
 停车调用返回后再等待0.5秒，期间控制循环保持零速度；用SLAM检查本段转角在70°～110°
 范围后采集。前三段依次保存左、后、右，第四段另存回正图，模型仍只收到初始前方、左、
@@ -27,8 +32,10 @@ PREEMPT、Recovery、BACKTRACK 和执行上报复用 `episode.py`。仿真仍创
 
 参数默认已生效，无需给真机入口重复添加：`--panorama-speed-rad-s 0.8`、
 `--panorama-imu-stop-deg 75`、`--panorama-quarter-timeout-s 10`、`--rotation-settle-s 0.5`。
-`--rotation-speed-rad-s`仍用于模型选定方向和BACKTRACK转向；其原有默认0.4及SLAM反馈
-逻辑本次未改，不与全景速度混用。
+2026-10-20后续修订：`--rotation-speed-rad-s`真机默认改为0.8，pelvis正式入口也显式传0.8。
+模型选定方向的导航左/右转改用`real_navigation_rotation.py`，同样IMU75°提前停车、
+停稳0.5秒后检查SLAM70°～110°；后方拆成两段右转。超时/反馈缺失不会继续规划行走。
+详见`README_G1_PELVIS_VLN.md`；仿真共享旋转器仍保持原实现，BACKTRACK继续复用原状态机。
 
 每次决策保存五组 `decision_XXX_方向.png` 与 `decision_XXX_方向_depth_m.npy`；
 `decision_XXX_panorama_capture.json`记录状态、四段转角、停车请求/返回时间、

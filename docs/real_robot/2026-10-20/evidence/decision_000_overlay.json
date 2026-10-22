@@ -1,0 +1,7 @@
+{
+  "view_aligned": true,
+  "decision_index": 0,
+  "direction": "forward",
+  "forward_frame_id": 5101,
+  "note": "Navigation turn and fresh forward capture completed; bbox is held, not tracked."
+}

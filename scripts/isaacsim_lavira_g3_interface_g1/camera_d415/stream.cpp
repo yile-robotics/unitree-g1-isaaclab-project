@@ -63,13 +63,14 @@ void intrinsics_json(std::ostream& out, const rs2_intrinsics& k) {
 
 // 接收 NEXT 后等待随后采集的帧，避免把模型推理期间缓存的旧图当作新观测。
 // SDK时间戳用于配对，新鲜度使用单调时钟。
-void capture(Latest& latest, const std::string& serial, const std::string& settings_dir) {
+void capture(Latest& latest, const std::string& serial, const std::string& settings_dir,
+             int width, int height) {
     try {
         rs2::pipeline pipeline;
         rs2::config config;
         config.enable_device(serial);
-        config.enable_stream(RS2_STREAM_COLOR, 640, 480, RS2_FORMAT_RGB8, 15);
-        config.enable_stream(RS2_STREAM_DEPTH, 640, 480, RS2_FORMAT_Z16, 15);
+        config.enable_stream(RS2_STREAM_COLOR, width, height, RS2_FORMAT_RGB8, 15);
+        config.enable_stream(RS2_STREAM_DEPTH, width, height, RS2_FORMAT_Z16, 15);
         const auto profile = pipeline.start(config);
         const auto startup_settings = camera_settings::read_startup(profile);
         camera_settings::save_startup(startup_settings, settings_dir);
@@ -142,7 +143,8 @@ void capture(Latest& latest, const std::string& serial, const std::string& setti
                 latest.packet = std::move(packet);
             }
             latest.changed.notify_all();
-            if (sequence == 1) std::cout << "RGB-D ready: aligned 640x480 at 15fps; start laptop preview now\n" << std::flush;
+            if (sequence == 1) std::cout << "RGB-D ready: aligned " << w << 'x' << h
+                                       << " at 15fps; start laptop preview now\n" << std::flush;
         }
         pipeline.stop();
     } catch (const std::exception& error) {
@@ -165,7 +167,7 @@ void send_all(int fd, const void* data, size_t size) {
 }
 
 void serve(int fd, Latest& latest) {
-    // 一个客户端；预览和 VLN 顺序使用。超时后释放连接，客户端可以重新运行。
+    // 每个客户端独立请求下一组新帧；预览和VLN共享唯一采集线程。
     timeval timeout{2, 0};
     if (setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, &timeout, sizeof(timeout)) != 0)
         throw std::runtime_error("Cannot set socket timeout");
@@ -219,17 +221,24 @@ int main(int argc, char** argv) {
         std::string bind = "192.168.123.164", serial = "344422072128";
         std::string settings_dir = "camera_logs";
         int port = 8765;
+        int width = 1280, height = 720;
         for (int i = 1; i < argc; ++i) {
             const std::string arg = argv[i];
             if (arg == "--help") {
-                std::cout << "g1_d435i_stream [--bind IP] [--port 8765] [--serial SERIAL] [--settings-dir DIRECTORY]\n"
-                          << "RGB8 + aligned Z16, 640x480 at 15fps; camera only, no robot motion.\n";
+                std::cout << "g1_d435i_stream [--bind IP] [--port 8765] [--serial SERIAL] [--settings-dir DIRECTORY] [--resolution 720p|480p]\n"
+                          << "RGB8 + aligned Z16, default 1280x720 at 15fps; camera only, no robot motion.\n";
                 return 0;
             }
             if (i + 1 >= argc) throw std::runtime_error("Missing argument value");
             if (arg == "--bind") bind = argv[++i];
             else if (arg == "--serial") serial = argv[++i];
             else if (arg == "--settings-dir") settings_dir = argv[++i];
+            else if (arg == "--resolution") {
+                const std::string value = argv[++i];
+                if (value == "720p") { width = 1280; height = 720; }
+                else if (value == "480p") { width = 640; height = 480; }
+                else throw std::runtime_error("resolution must be 720p or 480p");
+            }
             else if (arg == "--port") {
                 size_t used = 0;
                 const std::string value = argv[++i];
@@ -247,32 +256,63 @@ int main(int argc, char** argv) {
         address.sin_port = htons(static_cast<uint16_t>(port));
         if (inet_pton(AF_INET, bind.c_str(), &address.sin_addr) != 1) throw std::runtime_error("Invalid bind IPv4");
         if (::bind(listener.fd, reinterpret_cast<sockaddr*>(&address), sizeof(address)) != 0
-            || ::listen(listener.fd, 1) != 0) throw std::runtime_error(std::strerror(errno));
+            || ::listen(listener.fd, 4) != 0) throw std::runtime_error(std::strerror(errno));
+        struct ClientWorker {
+            std::shared_ptr<std::atomic<bool>> done;
+            std::thread thread;
+        };
+        std::vector<ClientWorker> clients;
+        clients.reserve(4);
         Latest latest;
-        std::thread producer(capture, std::ref(latest), serial, settings_dir);
+        std::thread producer(capture, std::ref(latest), serial, settings_dir, width, height);
         std::cout << "Camera stream listening on " << bind << ':' << port
                   << "; serial=" << serial << "; warming up 15 frames; Ctrl+C exits\n" << std::flush;
-        // 主线程任何异常都先通知采集线程退出，再 join，避免 std::thread 析构终止进程。
+        const auto join_clients = [&] {
+            for (auto& client : clients) client.thread.join();
+            clients.clear();
+        };
+        // 所有客户端线程结束之后才释放共享Latest；断开的线程及时回收。
         try {
             while (latest.running && !interrupted) {
+                for (auto it = clients.begin(); it != clients.end();) {
+                    if (*it->done) {
+                        it->thread.join();
+                        it = clients.erase(it);
+                    } else ++it;
+                }
                 pollfd incoming{listener.fd, POLLIN, 0};
                 const int ready = ::poll(&incoming, 1, 100);
                 if (ready < 0 && errno == EINTR) continue;
                 if (ready < 0) throw std::runtime_error("Listener poll failed");
                 if (!ready) continue;
                 Socket client(::accept(listener.fd, nullptr, nullptr));
-                std::cout << "Client connected\n" << std::flush;
-                try { serve(client.fd, latest); }
-                catch (const std::exception& error) { std::cerr << "Client ended: " << error.what() << '\n'; }
+                if (clients.size() >= 4) {
+                    std::cerr << "Client rejected: maximum 4 simultaneous receivers\n";
+                    continue;
+                }
+                auto done = std::make_shared<std::atomic<bool>>(false);
+                const int fd = client.fd;
+                clients.push_back({done, std::thread([fd, &latest, done] {
+                    Socket connection(fd);
+                    try { serve(fd, latest); }
+                    catch (const std::exception& error) {
+                        std::cerr << "Client ended: " << error.what() << '\n';
+                    }
+                    *done = true;
+                })});
+                client.fd = -1;  // 所有权移交给该客户端线程。
+                std::cout << "Client connected; active=" << clients.size() << "/4\n" << std::flush;
             }
         } catch (...) {
             latest.running = false;
             latest.changed.notify_all();
+            join_clients();
             producer.join();
             throw;
         }
         latest.running = false;
         latest.changed.notify_all();
+        join_clients();
         producer.join();
         if (!latest.error.empty()) throw std::runtime_error(latest.error);
         return interrupted ? 130 : 0;

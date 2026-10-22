@@ -1,0 +1,12 @@
+{
+  "latched_error": null,
+  "last_requested_command": [
+    0.0,
+    0.0,
+    0.0
+  ],
+  "manual_shutdown_reason": null,
+  "manual_shutdown_times": {},
+  "manual_shutdown_error": null,
+  "note": "software stop requests; not confirmation of physical stopping"
+}

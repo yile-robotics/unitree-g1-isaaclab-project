@@ -1,0 +1,58 @@
+{
+  "decision_index": 4,
+  "observation_id": "g1_pelvis_check_20261020_182930_fb929806_decision_004",
+  "action": "STOP",
+  "target": "绿色瓶子",
+  "selected_direction": "forward",
+  "displayed_direction": "forward",
+  "source_frame_id": 7543,
+  "source_image_size_wh": [
+    1280,
+    720
+  ],
+  "preview_header_height_px": 116,
+  "source_rgb_file": "decision_004_forward.png",
+  "bbox_xyxy_original": [
+    322,
+    301,
+    394,
+    550
+  ],
+  "bbox_xyxy_clipped": [
+    322,
+    301,
+    394,
+    550
+  ],
+  "projection": null,
+  "stage_progress": {
+    "stage_plan_id": "sha256:9908f82ce6a5004e074f9cc8bf5f724b580705b732c67690dd0dc4fbcc7c12c7",
+    "stage_total": 2,
+    "stage_completed": 2,
+    "stage_id": 2,
+    "completed_stage_ids": [
+      0,
+      1
+    ],
+    "current_stage": "COMPLETED",
+    "evidence_of_completion": [
+      "当前视野显示黑色箱子已经到达。",
+      "当前视野显示绿色瓶子已经到达。"
+    ],
+    "final_target_visible": true,
+    "parse_success": true,
+    "parse_error": null,
+    "decision_index": 4,
+    "role_call_index": 9,
+    "role_seed": null,
+    "image_count": 12,
+    "model_backend": "local_navigator_shadow"
+  },
+  "control": "STOP_CONFIRMED",
+  "stop_phase": "STOP_CONFIRMED",
+  "navigation_accepted": false,
+  "record_mode": "live_decision",
+  "image_file": "decision_004_target.png",
+  "metadata_file": "decision_004_target.json",
+  "coordinate_note": "bbox/pixel_uv use original RGB pixels; local goal uses unchanged nominal forward/left axes, not map coordinates"
+}

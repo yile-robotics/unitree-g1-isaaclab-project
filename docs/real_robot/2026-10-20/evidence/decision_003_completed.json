@@ -1,0 +1,45 @@
+{
+  "schema_version": 2,
+  "response_type": "end2end_decision",
+  "session_id": "g1_pelvis_check_20261020_182930_fb929806",
+  "observation_id": "g1_pelvis_check_20261020_182930_fb929806_decision_003",
+  "action": "NAVIGATE",
+  "direction": "forward",
+  "target": "绿色瓶子",
+  "bbox_2d": [
+    426,
+    377,
+    495,
+    485
+  ],
+  "waypoint": null,
+  "progress_analysis": "继续向前移动，直到到达绿色瓶子的位置。",
+  "reasoning": "在当前视图中，绿色瓶子清晰可见，并位于前方的桌子上。因此，继续向前移动即可到达目标。",
+  "goal_after_turn_robot_xy_m": [
+    1.3040000200271606,
+    0.2750989785845978
+  ],
+  "goal_distance_m": 1.3327023299481113,
+  "decision_pose": {
+    "x": -0.6897579009544896,
+    "y": -0.38445979793411295,
+    "yaw": -2.2957609818349565,
+    "timestamp": 16353.556644568
+  },
+  "arrival_pose": {
+    "x": -0.6871835956496579,
+    "y": -0.3841916815244028,
+    "yaw": -2.293236628723469,
+    "timestamp": 16354.442805019
+  },
+  "executed_world_path_xy": [
+    [
+      -0.6897579009544896,
+      -0.38445979793411295
+    ],
+    [
+      -0.688365507072169,
+      -0.38570451874941375
+    ]
+  ]
+}

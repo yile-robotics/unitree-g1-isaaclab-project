@@ -1,0 +1,22 @@
+{
+  "decision_index": 1,
+  "action": "NAVIGATE",
+  "status": "COMPLETED",
+  "reached_local_goal": true,
+  "timestamp": 16245.525165843,
+  "pose_frame_id": "map",
+  "frame_epoch": 0,
+  "decision_pose": [
+    -0.3041269255040564,
+    0.4079095105295463,
+    2.5974709730722965
+  ],
+  "final_pose": [
+    -0.30965352691846243,
+    0.41130432042375514,
+    2.596545396387439
+  ],
+  "displacement_m": 0.006485989316328913,
+  "planner_result": "REACHED",
+  "waypoint_id": 1
+}

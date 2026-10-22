@@ -1,0 +1,40 @@
+{
+  "schema_version": 2,
+  "response_type": "end2end_decision",
+  "session_id": "g1_pelvis_check_20261020_182930_fb929806",
+  "observation_id": "g1_pelvis_check_20261020_182930_fb929806_decision_000",
+  "action": "NAVIGATE",
+  "direction": "forward",
+  "target": "黑色箱子",
+  "bbox_2d": [
+    457,
+    384,
+    611,
+    549
+  ],
+  "waypoint": null,
+  "progress_analysis": "当前任务要求先向前走到黑色箱子前，然后向左转走到绿色瓶子前停下。",
+  "reasoning": "FORWARD视图中可以看到一个黑色箱子，这与任务描述中的黑色箱子一致。因此，选择向前移动是最合理的下一步，以接近黑色箱子。",
+  "session_status": "ACTIVE",
+  "stop_phase": null,
+  "stage_plan_id": "sha256:9908f82ce6a5004e074f9cc8bf5f724b580705b732c67690dd0dc4fbcc7c12c7",
+  "stage_plan_status": "READY",
+  "stage_progress": {
+    "stage_plan_id": "sha256:9908f82ce6a5004e074f9cc8bf5f724b580705b732c67690dd0dc4fbcc7c12c7",
+    "stage_total": 2,
+    "stage_completed": 0,
+    "stage_id": 0,
+    "completed_stage_ids": [],
+    "current_stage": "向前走到黑色箱子前",
+    "evidence_of_completion": [],
+    "final_target_visible": false,
+    "parse_success": true,
+    "parse_error": null,
+    "decision_index": 0,
+    "role_call_index": 5,
+    "role_seed": null,
+    "image_count": 4,
+    "model_backend": "local_navigator_shadow"
+  },
+  "stop_gate": null
+}

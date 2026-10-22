@@ -1,0 +1,45 @@
+{
+  "schema_version": 2,
+  "request_type": "end2end_decision",
+  "session_id": "g1_pelvis_check_20261020_182930_fb929806",
+  "observation_id": "g1_pelvis_check_20261020_182930_fb929806_decision_003",
+  "bundle_id": 3,
+  "decision_index": 3,
+  "sim_step": 3043,
+  "timestamp": 165.79637363599977,
+  "instruction": "向前走到黑色箱子前，然后向左转走到绿色瓶子前停下",
+  "image_width": 1280,
+  "image_height": 720,
+  "history": [
+    {
+      "waypoint_id": 0,
+      "step": 300,
+      "turn_action": "turn forward",
+      "description": "黑色箱子",
+      "init_image_field": "history_0_init",
+      "dir_image_field": "history_0_dir"
+    },
+    {
+      "waypoint_id": 1,
+      "step": 1103,
+      "turn_action": "turn forward",
+      "description": "黑色箱子",
+      "init_image_field": "history_1_init",
+      "dir_image_field": "history_1_dir"
+    },
+    {
+      "waypoint_id": 2,
+      "step": 2048,
+      "turn_action": "turn left",
+      "description": "绿色瓶子",
+      "init_image_field": "history_2_init",
+      "dir_image_field": "history_2_dir"
+    }
+  ],
+  "current_panorama": {
+    "forward": "current_forward",
+    "left": "current_left",
+    "behind": "current_behind",
+    "right": "current_right"
+  }
+}

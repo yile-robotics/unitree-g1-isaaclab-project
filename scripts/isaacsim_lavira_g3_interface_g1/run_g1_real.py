@@ -17,7 +17,6 @@ import argparse
 import importlib
 import json
 import math
-import os
 from pathlib import Path
 import signal
 import time
@@ -48,80 +47,100 @@ _active_camera: CameraBackend | None = None
 _active_odometry: Ros2OdometryProvider | None = None
 _active_episode: RealG1Episode | None = None
 _active_panorama_imu: LowStateYaw | None = None
+_shutdown_in_progress = False
 
 
 # 资源清理顺序很重要：先停止机器人再尝试远端 HTTP，避免等待网络时仍在运动。
 # 只有 stop_confirmed 才算语义任务成功；达到决策上限只是停止实验。
-def _shutdown_active_resources() -> None:
-    """按 Uni-LaViRA 的顺序尽力停止运动，再关闭所有已创建资源。"""
-
+def _shutdown_active_resources(*, reason="runner_terminated", error=None) -> None:
+    """先请求停车、保存本地证据，再关闭资源和结束HTTP会话。"""
     global _active_dds, _active_camera, _active_odometry, _active_episode, _active_panorama_imu
+    global _shutdown_in_progress
+    if _shutdown_in_progress:
+        return
+    _shutdown_in_progress = True
+    dds, camera, odometry, episode, imu = (
+        _active_dds, _active_camera, _active_odometry, _active_episode, _active_panorama_imu)
+    records = getattr(episode, 'run_records', None) if episode is not None else None
+    errors = []
+    stop_record = {'requested_monotonic_s':time.monotonic(), 'available':dds is not None,
+                   'call_returned':False, 'physical_stop_confirmed':False}
 
-    dds = _active_dds
-    camera = _active_camera
-    odometry = _active_odometry
-    episode = _active_episode
-    _active_episode = None
-
-    # 先清零并直接调用 StopMove；dds.close() 会在停止发送线程前再次停车，
-    # 对应 Uni-LaViRA 的 ``stop_robot()`` 后再进入 ``shutdown()``。
-    if dds is not None:
+    def attempt(label, operation):
         try:
-            dds.stop()
-        except Exception:
-            pass
-        try:
-            dds.close()
-        except Exception:
-            pass
-
-    # 每项独立清理，某个相机/ROS close 失败不能阻止其余资源继续关闭。
-    if camera is not None:
-        try:
-            _close_optional(camera)
-        except Exception:
-            pass
-    if _active_panorama_imu is not None:
-        try:
-            _active_panorama_imu.close()
-        except Exception:
-            pass
-        _active_panorama_imu = None
-    if odometry is not None:
-        try:
-            odometry.close()
-        except Exception:
-            pass
-
-    _active_dds = None
-    _active_camera = None
-    _active_odometry = None
-
-    # HTTP 清理可能耗时，必须在机器人和传感器已停止后执行。
-    if episode is not None and episode.remote_session_active:
-        success = (
-            episode.failure_reason is None
-            and episode.session_success_reason == "stop_confirmed"
-        )
-        reason = (
-            "stop_confirmed" if success else
-            episode.session_failure_reason or episode.failure_reason or
-            ("decision_limit_reached" if episode.completed else "runner_terminated")
-        )
-        try:
-            episode.end_remote_session(
-                status="SUCCESS" if success else "FAILURE", reason=reason
-            )
+            return operation()
         except Exception as exc:
-            print(f"[LOCAL-VLN G3 WARN] end_session failed: {exc}", flush=True)
+            errors.append({'operation':label, 'error':f'{type(exc).__name__}: {exc}'})
+            print(f'[LOCAL-VLN CLEANUP WARN] {label}: {exc}', flush=True)
+            return None
+
+    summary = None
+    try:
+        # 必须在写磁盘、关闭相机或等待远端HTTP之前请求停车。
+        if dds is not None:
+            try:
+                dds.stop()
+                stop_record['call_returned'] = True
+            except Exception as exc:
+                stop_record['error'] = str(exc)
+                errors.append({'operation':'dds.stop', 'error':str(exc)})
+                print(f'[LOCAL-VLN CLEANUP WARN] dds.stop: {exc}', flush=True)
+            stop_record['returned_monotonic_s'] = time.monotonic()
+        if records is not None:
+            summary = attempt('save_local_exit', lambda: records.local_exit(
+                episode, reason, error, stop_record))
+        if episode is not None and callable(getattr(type(episode), 'save_follow_stopped', None)):
+            attempt('save_follow_stopped', episode.save_follow_stopped)
+        if dds is not None:
+            attempt('dds.close', dds.close)
+            if episode is not None and callable(getattr(type(dds), 'guard_report', None)):
+                attempt('save_guard_report', lambda: episode._save_json(
+                    'real_input_guard.json', dds.guard_report()))
+        for label, resource in (('camera',camera), ('imu',imu), ('odometry',odometry)):
+            if resource is not None:
+                attempt(label+'.close', lambda resource=resource: _close_optional(resource))
+
+        remote_status = 'NOT_ACTIVE'
+        if episode is not None and episode.remote_session_active:
+            success = (reason == 'runner_completed' and episode.failure_reason is None
+                       and episode.session_success_reason == 'stop_confirmed')
+            end_reason = ('stop_confirmed' if success else
+                          reason if reason in ('user_interrupt','sigterm','runner_exception') else
+                          episode.session_failure_reason or episode.failure_reason or
+                          ('decision_limit_reached' if episode.completed else reason))
+            try:
+                episode.end_remote_session(status='SUCCESS' if success else 'FAILURE', reason=end_reason)
+                remote_status = 'CONFIRMED'
+            except Exception as exc:
+                remote_status = 'UNCONFIRMED'
+                errors.append({'operation':'end_remote_session','error':str(exc)})
+                print(f'[LOCAL-VLN G3 WARN] end_session failed: {exc}', flush=True)
+        if summary is not None:
+            summary.update(phase='CLEANUP_FINISHED', remote_end_status=remote_status,
+                           cleanup_errors=errors, cleanup_finished_monotonic_s=time.monotonic())
+            attempt('save_exit_result', lambda: records.save('run_exit.json',summary))
+            attempt('flush_exit_journal', lambda: records.append('shutdown_finished',summary,durable=True))
+    finally:
+        _active_episode = _active_dds = _active_camera = _active_odometry = _active_panorama_imu = None
+        _shutdown_in_progress = False
 
 
-def _signal_handler(_sig, _frame) -> None:
-    """处理 Ctrl+C：尽力停车和关闭资源，随后像 Uni-LaViRA 一样强制退出。"""
+class RunnerTerminated(KeyboardInterrupt):
+    """与Ctrl+C共用停车收尾，单独保留SIGTERM退出原因。"""
 
-    print("\n[LOCAL-VLN G1] Signal received, shutting down...", flush=True)
-    _shutdown_active_resources()
-    os._exit(0)
+
+def _signal_handler(sig, _frame) -> None:
+    # 抛出异常让持锁代码和with先退栈；finally的第一项操作就是停车。
+    # 收尾中的重复Ctrl+C不再打断落盘，也不启动第二轮并发清理。
+    if _shutdown_in_progress:
+        return
+    dds = _active_dds
+    if dds is not None and callable(getattr(type(dds), 'request_shutdown_stop', None)):
+        dds.request_shutdown_stop('sigterm' if sig == signal.SIGTERM else 'user_interrupt')
+    print("\n[LOCAL-VLN G1] Signal received; stopping and saving records...", flush=True)
+    if sig == signal.SIGTERM:
+        raise RunnerTerminated()
+    raise KeyboardInterrupt()
 
 
 def _positive_float(value: str) -> float:
@@ -198,7 +217,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--dead-reckoning-angular-scale", type=_positive_float, default=0.8
     )
-    parser.add_argument("--rotation-speed-rad-s", type=_positive_float, default=0.4)
+    parser.add_argument("--rotation-speed-rad-s", type=_positive_float, default=0.8)
     parser.add_argument("--rotation-settle-s", type=_positive_float, default=0.5)
     parser.add_argument("--panorama-speed-rad-s", type=_positive_float, default=0.8,
                         help="Real four-quarter capture speed; separate from navigation turns.")
@@ -217,6 +236,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--imu-timeout-s", type=_positive_float, default=1.0)
     parser.add_argument("--dds-command-rate-hz", type=_positive_float, default=50.0)
     parser.add_argument("--control-rate-hz", type=_positive_float, default=20.0)
+    parser.add_argument('--decision-display-s',type=_non_negative_float,default=0.,
+                        help='Optional stationary decision display before following, 0..10 seconds.')
 
     parser.add_argument("--walk-speed-m-s", type=_positive_float, default=0.3)
     parser.add_argument("--lookahead-m", type=_positive_float, default=0.5)
@@ -423,6 +444,7 @@ def run(args: argparse.Namespace) -> int:
     camera = None
     odometry = None
     dds = None
+    exit_reason, exit_error = "runner_completed", None
     try:
         # 先建立 DDS 并保持零速度，再初始化可能耗时较长的相机和 ROS。
         dds = UnitreeG1DDSBackend(
@@ -450,13 +472,22 @@ def run(args: argparse.Namespace) -> int:
         if odometry is not None:
             pose_frame_id = _wait_for_odometry(odometry, args.odometry_startup_timeout_s)
             pose_source = _SlamPoseSource(odometry, pose_frame_id)
+            if callable(getattr(type(camera), 'validate_slam_frame', None)):
+                camera.validate_slam_frame(odometry.frame_id, odometry.child_frame_id)
         if args.g3_session:
-            exploration_map = SparseEpisodeExplorationMap(
-                map_config, pose_frame_id=pose_frame_id, frame_epoch=0
-            )
+            if callable(getattr(type(camera), 'create_exploration_map', None)):
+                exploration_map = camera.create_exploration_map(
+                    map_config, pose_frame_id=pose_frame_id, frame_epoch=0)
+            else:
+                exploration_map = SparseEpisodeExplorationMap(
+                    map_config, pose_frame_id=pose_frame_id, frame_epoch=0
+                )
 
         control_period_s = 1.0 / args.control_rate_hz
         _active_panorama_imu.wait_ready()
+        if callable(getattr(type(camera), 'guard_motion_backend', None)):
+            dds = camera.guard_motion_backend(dds, pose_source, _active_panorama_imu)
+            _active_dds = dds
         episode = RealG1Episode(
             EpisodeConfig(
                 session_id=session_id,
@@ -518,7 +549,9 @@ def run(args: argparse.Namespace) -> int:
                 args.model_url, args.model_timeout_s,
                 send_instruction=not args.g3_session,
             ),
-            planner=IPlannerClient(args.iplanner_url, args.iplanner_timeout_s),
+            planner=(camera.create_planner(args.iplanner_url, args.iplanner_timeout_s)
+                     if callable(getattr(type(camera), 'create_planner', None))
+                     else IPlannerClient(args.iplanner_url, args.iplanner_timeout_s)),
             session_client=session_client,
             exploration_map=exploration_map,
             odometry=pose_source,
@@ -529,9 +562,12 @@ def run(args: argparse.Namespace) -> int:
             panorama_imu=_active_panorama_imu,
             stop_robot=dds.stop,
             real_panorama_config=panorama_config,
+            decision_display_s=args.decision_display_s,
         )
         # 在任何会话 HTTP 前登记对象，异常或 Ctrl+C 才能找到它并尝试结束会话。
         _active_episode = episode
+        if callable(getattr(type(camera), 'provenance', None)):
+            episode._save_json('real_geometry_assumptions.json', camera.provenance())
         # health 与启动响应校验通过后才继续 HighStand；不把 HTTP 可达误认为协议匹配。
         episode.start_remote_session()
 
@@ -580,12 +616,16 @@ def run(args: argparse.Namespace) -> int:
             # 相机/HTTP 调用可能耗时，下发本轮速度前再次确认位姿仍有效。
             if pose_source is not None:
                 pose_source.get_pose()
+            if hasattr(episode, 'run_records'):
+                episode.run_records.sample(episode, 'command_intent', update.command)
             command, previous_mode = _apply_episode_command(
                 dds,
                 update,
                 previous_mode,
             )
             last_applied_command = command.copy()
+            if hasattr(episode, 'run_records'):
+                episode.run_records.sample(episode, 'command_requested', command)
             step += 1
 
             elapsed = time.monotonic() - loop_started
@@ -596,23 +636,29 @@ def run(args: argparse.Namespace) -> int:
             f"[LOCAL-VLN G1] finished: state={episode.state} "
             f"history={len(episode.history)} failure={episode.failure_reason!r}"
         )
+        if episode.failure_reason is not None:
+            exit_reason = 'episode_failed'
         return 0 if episode.failure_reason is None else 1
+    except KeyboardInterrupt as exc:
+        exit_reason = 'sigterm' if isinstance(exc, RunnerTerminated) else 'user_interrupt'
+        raise
+    except Exception as exc:
+        exit_reason, exit_error = 'runner_exception', f'{type(exc).__name__}: {exc}'
+        raise
     finally:
-        _shutdown_active_resources()
+        _shutdown_active_resources(reason=exit_reason, error=exit_error)
 
 
 def main() -> int:
     # 与 Uni-LaViRA 一致：在解析参数和加载真机资源之前尽早注册 Ctrl+C。
     signal.signal(signal.SIGINT, _signal_handler)
+    signal.signal(signal.SIGTERM, _signal_handler)
     args = build_parser().parse_args()
     try:
         return run(args)
-    except KeyboardInterrupt:
-        # 显式 SIGINT handler 通常会直接 os._exit(0)；保留该分支作为无法安装
-        # handler 或测试直接抛出 KeyboardInterrupt 时的兜底。
-        print("\n[LOCAL-VLN G1] Interrupted by user.")
-        _shutdown_active_resources()
-        return 0
+    except KeyboardInterrupt as exc:
+        print("[LOCAL-VLN G1] Shutdown finished; see run_exit.json for saved results.", flush=True)
+        return 143 if isinstance(exc, RunnerTerminated) else 130
 
 
 if __name__ == "__main__":

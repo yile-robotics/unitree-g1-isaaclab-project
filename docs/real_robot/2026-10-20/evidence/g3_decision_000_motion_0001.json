@@ -1,0 +1,54 @@
+{
+  "request": {
+    "schema_version": 2,
+    "request_type": "report_execution",
+    "event_type": "motion_window",
+    "session_id": "g1_pelvis_check_20261020_182930_fb929806",
+    "decision_index": 0,
+    "event_id": "g1_pelvis_check_20261020_182930_fb929806:d0:w1",
+    "window_index": 1,
+    "action": "NAVIGATE",
+    "timestamp_start": 16192.597194379,
+    "timestamp_end": 16193.701090765,
+    "pose_frame_id": "map",
+    "frame_epoch": 0,
+    "pose_start": [
+      0.8418294071761497,
+      -0.016037233338013785,
+      2.6399662895946348
+    ],
+    "pose_end": [
+      0.4577316926660302,
+      0.11696809799275054,
+      2.5768897858069173
+    ],
+    "displacement_m": 0.40647444255980436,
+    "local_planner_status": "RUNNING",
+    "distance_to_local_goal_start": 2.0387877705772914,
+    "distance_to_local_goal_end": 1.6573576446743945,
+    "map_progress": {
+      "resolution_m": 0.05,
+      "explored_cells": 15784,
+      "new_explored_cells": 370,
+      "traversable_cells": 2301
+    }
+  },
+  "response": {
+    "schema_version": 2,
+    "response_type": "execution_control",
+    "session_id": "g1_pelvis_check_20261020_182930_fb929806",
+    "decision_index": 0,
+    "control": "CONTINUE",
+    "reason": "execution_window_recorded",
+    "event_type": "motion_window",
+    "stop_phase": null,
+    "stage_plan_id": "sha256:9908f82ce6a5004e074f9cc8bf5f724b580705b732c67690dd0dc4fbcc7c12c7",
+    "stage_plan_status": "READY",
+    "event_id": "g1_pelvis_check_20261020_182930_fb929806:d0:w1",
+    "phase5": {
+      "status": "MONITORING",
+      "candidate": null,
+      "recovery_phase": "NAVIGATOR"
+    }
+  }
+}
