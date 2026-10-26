@@ -28,11 +28,12 @@ class LocalTargetProjection:
     valid_depth_count: int
     goal_after_turn_xy_m: np.ndarray
     used_forward_fallback: bool = False
+    depth_sampling: dict | None = None
 
     def to_dict(self) -> dict:
         """转换为可写入 JSON 的普通字典；NumPy 数组会转换成列表。"""
 
-        return {
+        result = {
             "direction": self.direction,
             "bbox_xyxy": list(self.bbox_xyxy),
             "pixel_uv": list(self.pixel_uv),
@@ -45,6 +46,9 @@ class LocalTargetProjection:
             "used_forward_fallback": self.used_forward_fallback,
             "coordinate_convention": "robot_after_turn: x=forward,y=left",
         }
+        if self.depth_sampling is not None:
+            result["depth_sampling"] = dict(self.depth_sampling)
+        return result
 
 
 def project_selected_view_target(
@@ -55,6 +59,8 @@ def project_selected_view_target(
     max_depth_m: float = 5.0,
     window_radius_px: int = 3,
     depth_percentile: float = 30.0,
+    expanded_window_radius_px: int | None = None,
+    limit_to_bbox: bool = False,
 ) -> LocalTargetProjection:
     """利用检测框和深度图，把视觉目标投影成转向后的局部二维目标。
 
@@ -78,31 +84,41 @@ def project_selected_view_target(
         raise ValueError("Depth range must satisfy 0 < min < max.")
     if window_radius_px < 0:
         raise ValueError("Depth window radius must be non-negative.")
+    if expanded_window_radius_px is not None and expanded_window_radius_px <= window_radius_px:
+        raise ValueError("Expanded depth window radius must exceed the initial radius.")
     if not 0.0 <= depth_percentile <= 100.0:
         raise ValueError("Depth percentile must lie in [0, 100].")
 
     # 检测框先裁剪到图像内部，再取“底边中心”作为目标接地点。
     height, width = frame.depth_m.shape
     bbox = response.clipped_bbox(width, height)
-    x1, _y1, x2, y2 = bbox
+    x1, y1, x2, y2 = bbox
     # 使用底边中心来代表靠近物体底部的目标像素，而不是检测框几何中心。
     u = int((x1 + x2) / 2.0)
     v = int(y2)
 
     # 构造不越过图像边界的深度采样窗口；右边界和下边界采用 Python 独占格式。
-    x_min = max(0, u - window_radius_px)
-    x_max = min(width, u + window_radius_px + 1)
-    y_min = max(0, v - window_radius_px)
-    y_max = min(height, v + window_radius_px + 1)
-    patch = np.asarray(
-        frame.depth_m[y_min:y_max, x_min:x_max], dtype=np.float64
-    )
-    # 丢弃 NaN、Inf、过近和过远的深度值，只对可信像素计算百分位数。
-    valid = patch[
-        np.isfinite(patch)
-        & (patch >= float(min_depth_m))
-        & (patch <= float(max_depth_m))
-    ]
+    radii = [window_radius_px]
+    if expanded_window_radius_px is not None:
+        radii.append(expanded_window_radius_px)
+    attempts = []
+    for radius in radii:
+        x_min = max(0, u - radius, x1 if limit_to_bbox else 0)
+        x_max = min(width, u + radius + 1, x2 + 1 if limit_to_bbox else width)
+        y_min = max(0, v - radius, y1 if limit_to_bbox else 0)
+        y_max = min(height, v + radius + 1, y2 + 1 if limit_to_bbox else height)
+        patch = np.asarray(frame.depth_m[y_min:y_max, x_min:x_max], dtype=np.float64)
+        valid = patch[np.isfinite(patch) & (patch >= min_depth_m) & (patch <= max_depth_m)]
+        attempts.append({"window_side_px": 2 * radius + 1,
+                         "window_xyxy_exclusive": [x_min, y_min, x_max, y_max],
+                         "pixel_count": int(patch.size), "valid_depth_count": int(valid.size)})
+        if valid.size:
+            break
+    sampling = None
+    if expanded_window_radius_px is not None or limit_to_bbox:
+        sampling = {"limited_to_bbox": limit_to_bbox, "attempts": attempts,
+                    "used_expanded_window": radius != window_radius_px,
+                    "selected_window_side_px": 2 * radius + 1}
     if valid.size == 0:
         # 与 Uni-LaViRA G1 的 tasks/vln.py 一致：bbox/depth 无法给出可靠
         # 三维目标时，不终止任务，而是让机器人转向后尝试向正前方走 1.5m。
@@ -119,6 +135,7 @@ def project_selected_view_target(
             valid_depth_count=0,
             goal_after_turn_xy_m=np.array([1.5, 0.0], dtype=np.float64),
             used_forward_fallback=True,
+            depth_sampling=sampling,
         )
     # 默认第30百分位不是平均值：从已过滤的局部深度样本中选择相对偏近的深度。
     depth_m = float(np.percentile(valid, depth_percentile))
@@ -145,4 +162,5 @@ def project_selected_view_target(
         valid_depth_count=int(valid.size),
         goal_after_turn_xy_m=goal,
         used_forward_fallback=False,
+        depth_sampling=sampling,
     )

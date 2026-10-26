@@ -168,7 +168,7 @@ class PelvisCamera:
                 'initial_derived_camera_height_above_floor_m': float(self.profile['pelvis_height_above_floor_m'] + self.initial_transform[2, 3]),
                 'height_source': self.profile['pelvis_height_source'],
                 'projection_model': 'full per-frame waist FK; SLAM planar xy/yaw; fixed nominal pelvis height',
-                'local_navigation_projection': 'unchanged nominal camera axes; extrinsics only used by exploration map'}
+                'local_navigation_projection': 'planner retains nominal camera axes; real target_geometry independently records SE3 and measured-turn correction; not applied to planner'}
 
     def create_exploration_map(self, config, *, pose_frame_id, frame_epoch=0):
         config = map_config_for_transform(self.initial_transform,

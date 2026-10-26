@@ -77,6 +77,28 @@ class RealG1SignalTest(unittest.TestCase):
         run.assert_called_once_with(parser.parse_args.return_value)
         self.assertEqual(result, 0)
 
+    def test_ctrl_c_finishes_cleanup_and_records_before_waiting_in_protection(self):
+        events=[]
+        dds=_Resource('dds',events)
+        monitor=MagicMock()
+        monitor.wait_in_standby.side_effect=lambda:events.append('standby')
+        monitor.close.side_effect=lambda:events.append('monitor.close')
+        records=MagicMock()
+        records.local_exit.side_effect=lambda *a:events.append('local_exit') or {}
+        records.save.side_effect=lambda *a:events.append('saved')
+        records.append.side_effect=lambda *a,**k:events.append('journal')
+        episode=SimpleNamespace(run_records=records,remote_session_active=True,
+            failure_reason=None,session_success_reason=None,session_failure_reason=None,
+            end_remote_session=lambda **kw:events.append('remote_end'))
+        with patch.object(run_g1_real,'_active_dds',dds),\
+             patch.object(run_g1_real,'_active_episode',episode),\
+             patch.object(run_g1_real,'_active_terminal_damping',monitor):
+            run_g1_real._shutdown_active_resources(reason='user_interrupt')
+        self.assertLess(events.index('dds.stop'),events.index('local_exit'))
+        for completed in ('dds.close','local_exit','remote_end','saved','journal'):
+            self.assertLess(events.index(completed),events.index('standby'))
+        self.assertEqual(events[-2:],['standby','monitor.close'])
+
     def test_motion_to_stand_edge_calls_stopmove_once(self):
         dds = MagicMock()
         moving = SimpleNamespace(

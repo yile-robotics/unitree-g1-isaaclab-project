@@ -16,6 +16,7 @@ Uni-LaViRA 真机实现一致，二维位置不读取 ``SportModeState_.position
 import math
 import threading
 import time
+from .damping_safety import latch_path,auto_clear_previous_latch
 
 
 class UnitreeG1DDSBackend:
@@ -31,6 +32,8 @@ class UnitreeG1DDSBackend:
         *,
         imu_timeout_s: float = 1.0,
         command_rate_hz: float = 50.0,
+        auto_clear_damping_latch: bool = False,
+        startup_latch_snapshot: bytes | None = None,
     ):
         """初始化 DDS、运动客户端、状态订阅器和命令发送线程。"""
 
@@ -38,6 +41,10 @@ class UnitreeG1DDSBackend:
             raise ValueError("Unitree network interface must not be empty.")
         if min(imu_timeout_s, command_rate_hz) <= 0.0:
             raise ValueError("DDS timeout/rate values must be positive.")
+        self.damping_latch_path = latch_path(network_interface)
+        self.damping_requested = threading.Event()
+        if self._damping_latched() and not auto_clear_damping_latch:
+            raise RuntimeError('Damping latched on this computer; navigation startup blocked. Clear explicitly after stopping all controllers.')
         # 只有实例化真实机器人后端时才导入 SDK，不影响纯仿真环境。
         from unitree_sdk2py.core.channel import (
             ChannelFactoryInitialize,
@@ -50,6 +57,11 @@ class UnitreeG1DDSBackend:
         self.client = LocoClient()
         self.client.SetTimeout(10.0)
         self.client.Init()
+        self.startup_latch_report={'status':'AUTO_CLEAR_DISABLED'}
+        if auto_clear_damping_latch:
+            self.startup_latch_report=auto_clear_previous_latch(
+                self.client,self.damping_latch_path,startup_latch_snapshot)
+            self.damping_requested.clear()
 
         self.imu_timeout_s = float(imu_timeout_s)
         self.command_period_s = 1.0 / float(command_rate_hz)
@@ -95,10 +107,28 @@ class UnitreeG1DDSBackend:
             return None
         return float(yaw)
 
+    def _damping_latched(self):
+        event = getattr(self, 'damping_requested', None)
+        if event is not None and event.is_set():
+            return True
+        path = getattr(self, 'damping_latch_path', None)
+        if path is not None:
+            try:
+                latched = path.exists()
+            except OSError:
+                latched = True
+            if latched:
+                if event is not None:
+                    event.set()
+                return True
+        return False
+
     def set_velocity(self, vx: float, vy: float, wz: float) -> None:
         """更新目标速度，由后台线程负责持续发送。"""
 
         with self.lock:
+            if self._damping_latched() and any((vx, vy, wz)):
+                raise RuntimeError('Damping latched; nonzero command rejected.')
             if self.shutdown_requested.is_set() and any((vx, vy, wz)):
                 raise RuntimeError('Manual shutdown latched; nonzero command rejected.')
             self.target_command = (float(vx), float(vy), float(wz))
@@ -111,6 +141,8 @@ class UnitreeG1DDSBackend:
         """把目标速度归零，并请求 Unitree 运动客户端停止移动。"""
 
         self.set_velocity(0.0, 0.0, 0.0)
+        if self._damping_latched():
+            return  # 阻尼后不再发送零速度/StopMove，避免收尾覆盖模式请求。
         try:
             self.client.StopMove()
         except Exception:
@@ -122,6 +154,8 @@ class UnitreeG1DDSBackend:
     def high_stand(self) -> None:
         """像 Uni-LaViRA 一样在导航开始前请求一次 G1 高站立姿态。"""
 
+        if self._damping_latched():
+            raise RuntimeError('Damping latched; HighStand rejected.')
         try:
             # 当前本地 unitree_sdk2py 的 HighStand() 内部调用
             # SetStandHeight(UINT32_MAX)，不是切换另一套行走/站立 policy。
@@ -135,8 +169,13 @@ class UnitreeG1DDSBackend:
         """后台发送循环；与 Uni-LaViRA 一样持续发送最近一次目标速度。"""
 
         while self.running:
+            if self._damping_latched():
+                time.sleep(self.command_period_s)
+                continue
             with self.lock:
                 command = self.target_command
+            if self._damping_latched():
+                continue
             if self.shutdown_requested.is_set():
                 command = (0.0, 0.0, 0.0)
             try:

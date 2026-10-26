@@ -33,6 +33,8 @@ from unified_vln.model_client import CombinedModelClient
 from unified_vln.map_progress import SparseEpisodeExplorationMap, SparseMapConfig
 from unified_vln.ros2_odometry import Ros2OdometryProvider
 from unified_vln.session_client import G3SessionClient
+from unified_vln.terminal_damping import TerminalDampingMonitor
+from unified_vln.damping_safety import latch_path,snapshot_latch
 
 
 SCRIPT_DIR = Path(__file__).resolve().parent
@@ -47,6 +49,7 @@ _active_camera: CameraBackend | None = None
 _active_odometry: Ros2OdometryProvider | None = None
 _active_episode: RealG1Episode | None = None
 _active_panorama_imu: LowStateYaw | None = None
+_active_terminal_damping: TerminalDampingMonitor | None = None
 _shutdown_in_progress = False
 
 
@@ -56,6 +59,7 @@ def _shutdown_active_resources(*, reason="runner_terminated", error=None) -> Non
     """先请求停车、保存本地证据，再关闭资源和结束HTTP会话。"""
     global _active_dds, _active_camera, _active_odometry, _active_episode, _active_panorama_imu
     global _shutdown_in_progress
+    global _active_terminal_damping
     if _shutdown_in_progress:
         return
     _shutdown_in_progress = True
@@ -121,6 +125,12 @@ def _shutdown_active_resources(*, reason="runner_terminated", error=None) -> Non
             attempt('save_exit_result', lambda: records.save('run_exit.json',summary))
             attempt('flush_exit_journal', lambda: records.append('shutdown_finished',summary,durable=True))
     finally:
+        if _active_terminal_damping is not None:
+            if reason != 'sigterm':
+                # 先完成停车、落盘、远端结束，再保持前台保护；不是重启导航会话。
+                attempt('terminal_damping.standby', _active_terminal_damping.wait_in_standby)
+            attempt('terminal_damping.close', _active_terminal_damping.close)
+            _active_terminal_damping = None
         _active_episode = _active_dds = _active_camera = _active_odometry = _active_panorama_imu = None
         _shutdown_in_progress = False
 
@@ -414,6 +424,7 @@ def _apply_episode_command(
 # 本地模块的 import 也可能依赖相邻工程，应先确认 SDK、ROS 与 iPlanner 客户端可导入。
 def run(args: argparse.Namespace) -> int:
     global _active_dds, _active_camera, _active_odometry, _active_episode, _active_panorama_imu
+    global _active_terminal_damping
 
     if args.max_decisions < 0:
         raise ValueError("--max-decisions must be >= 0; use 0 for unlimited.")
@@ -446,11 +457,19 @@ def run(args: argparse.Namespace) -> int:
     dds = None
     exit_reason, exit_error = "runner_completed", None
     try:
+        # 在启用按键前冻结旧锁存版本；随后新按下的阻尼不能自动清除。
+        previous_damping_latch=snapshot_latch(latch_path(args.network_interface))
+        # stdin由启动器继承真实终端；独立按键进程不受模型/iPlanner调用阻塞。
+        _active_terminal_damping = TerminalDampingMonitor(
+            args.network_interface, PROJECT_DIR/'outputs/damping_key')
+        _active_terminal_damping.start()
         # 先建立 DDS 并保持零速度，再初始化可能耗时较长的相机和 ROS。
         dds = UnitreeG1DDSBackend(
             args.network_interface,
             imu_timeout_s=args.imu_timeout_s,
             command_rate_hz=args.dds_command_rate_hz,
+            auto_clear_damping_latch=True,
+            startup_latch_snapshot=previous_damping_latch,
         )
         _active_dds = dds
         dds.stop()
@@ -566,6 +585,9 @@ def run(args: argparse.Namespace) -> int:
         )
         # 在任何会话 HTTP 前登记对象，异常或 Ctrl+C 才能找到它并尝试结束会话。
         _active_episode = episode
+        startup_report=getattr(dds,'startup_latch_report',None)
+        if isinstance(startup_report,dict):
+            episode._save_json('damping_startup.json',startup_report)
         if callable(getattr(type(camera), 'provenance', None)):
             episode._save_json('real_geometry_assumptions.json', camera.provenance())
         # health 与启动响应校验通过后才继续 HighStand；不把 HTTP 可达误认为协议匹配。

@@ -1189,7 +1189,7 @@ class LocalEndToEndEpisode:
         action_decision_pose = self.odometry.get_pose() or decision_pose
         # 只用模型选中方向的检测框和深度，计算完成理想转向后的目标点。
         selected_frame = panorama.views[response.direction]
-        projection = project_selected_view_target(
+        projection = self._project_selected_view_target(
             selected_frame,
             response,
             min_depth_m=self.config.min_depth_m,
@@ -1231,6 +1231,11 @@ class LocalEndToEndEpisode:
             f"goal_after_turn={projection.goal_after_turn_xy_m.tolist()}"
         )
 
+    @staticmethod
+    def _project_selected_view_target(frame, response, **kwargs):
+        # 默认沿用仿真原采样；真机可单独覆盖采样策略。
+        return project_selected_view_target(frame, response, **kwargs)
+
     def _accept_decision_preempt(
         self,
         panorama: PanoramaBundle,
@@ -1258,7 +1263,7 @@ class LocalEndToEndEpisode:
         action_decision_pose = self.odometry.get_pose() or decision_pose
         if action_decision_pose is None:
             raise RuntimeError("Decision PREEMPT requires a valid robot pose.")
-        projection = project_selected_view_target(
+        projection = self._project_selected_view_target(
             panorama.views[response.direction],
             response,
             min_depth_m=self.config.min_depth_m,

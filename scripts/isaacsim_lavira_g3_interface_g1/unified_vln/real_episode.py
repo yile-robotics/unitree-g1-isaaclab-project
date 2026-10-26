@@ -14,6 +14,8 @@ from .odometry import wrap_to_pi, local_points_to_fixed, fixed_points_to_local
 from .types import DIRECTION_ORDER
 from .real_run_records import RealRunRecords, RecordingSessionClient, RecordingPlanner, atomic_json
 from .real_navigation_rotation import RealNavigationRotation
+from .local_projection import project_selected_view_target
+from .real_target_geometry import build_target_geometry, update_target_for_pose, pose_from_record
 from . import real_console
 
 
@@ -55,6 +57,7 @@ class RealG1Episode(LocalEndToEndEpisode):
         self._display_moving = False
         self._display_following = False
         self._display_decision = None
+        self._target_geometry = None
         self.decision_display_s = float(decision_display_s)
         if not math.isfinite(self.decision_display_s) or not 0 <= self.decision_display_s <= 10:
             raise ValueError('decision display time must be within 0..10 seconds')
@@ -72,6 +75,18 @@ class RealG1Episode(LocalEndToEndEpisode):
             self.planner = RecordingPlanner(self.planner, self.run_records)
         if self.session_client is not None:
             self.session_client = RecordingSessionClient(self.session_client, self.run_records)
+
+    @staticmethod
+    def _project_selected_view_target(frame, response, **kwargs):
+        projection = project_selected_view_target(
+            frame, response, expanded_window_radius_px=7, limit_to_bbox=True, **kwargs)
+        sampling = projection.depth_sampling
+        if sampling["used_expanded_window"]:
+            last = sampling["attempts"][-1]
+            print(f'[REAL VLN DEPTH] 7x7无有效深度，尝试框内15x15；'
+                  f'有效点={last["valid_depth_count"]}/{last["pixel_count"]} '
+                  f'深度={projection.depth_m}m 兜底={projection.used_forward_fallback}', flush=True)
+        return projection
 
     def _save_json(self, name, payload):
         if self.output_dir is not None:
@@ -164,9 +179,16 @@ class RealG1Episode(LocalEndToEndEpisode):
         frame=panorama.views.get(direction) if isinstance(direction,str) else None
         real_console.emit(real_console.model_lines,index,raw_response,frame)
         apply_error=None
+        self._target_geometry = None
         try:
-            return super()._apply_decision_response(
+            result = super()._apply_decision_response(
                 panorama, decision_pose=decision_pose, response=response, raw_response=raw_response)
+            if (raw_response.get('action') == 'NAVIGATE'
+                    and raw_response.get('control') not in ('PREEMPT', 'SAFE_STOP')
+                    and self.pending is not None
+                    and getattr(self.pending, 'panorama', None) is panorama):
+                self._compute_target_geometry(panorama, response)
+            return result
         except Exception as error:
             apply_error=str(error)
             raise
@@ -191,6 +213,45 @@ class RealG1Episode(LocalEndToEndEpisode):
                                          projection=projection, navigation_accepted=accepted)
                 except Exception as error:
                     print(f'[REAL VLN ARTIFACT WARN] target preview not saved: {error}', flush=True)
+
+    def _compute_target_geometry(self, panorama, response):
+        # 前两处几何修正独立记录；第三处规划接口适配前，不替换旧名义目标。
+        geometry = {'status': 'UNAVAILABLE', 'mode': 'geometry_comparison_only',
+                    'applied_to_planner': False}
+        try:
+            frame = panorama.views[response.direction]
+            record = self._real_records.get(response.direction)
+            if record is None or (record['frame_id'], record['sim_step'], record['timestamp']) != (
+                    frame.frame_id, frame.sim_step, frame.timestamp):
+                raise ValueError('缺少所选图像对应的采图位姿/外参，拒绝借用其他帧')
+            transform = record['camera_metadata']['T_pelvis_camera']
+            pose = pose_from_record(record['pose_after_capture'])
+            geometry = build_target_geometry(frame, self.pending.projection, transform, pose)
+            current = self.odometry.get_pose()
+            if current is not None:
+                geometry = update_target_for_pose(geometry, current)
+        except Exception as error:
+            geometry['reason'] = str(error)
+            print(f'[REAL VLN GEOMETRY] 修正目标不可用：{error}', flush=True)
+        self._target_geometry = geometry
+        self._save_json(f'decision_{self.decision_index:03d}_target_geometry.json', geometry)
+
+    def _capture_forward_observation(self, completed_step, timestamp):
+        frame, pose = super()._capture_forward_observation(completed_step, timestamp)
+        if self.state == EpisodeState.PLAN_AFTER_ROTATION and self._target_geometry is not None:
+            if pose is None:
+                self._target_geometry = {**self._target_geometry, 'status': 'UNAVAILABLE',
+                                         'reason': 'planning-time SLAM pose unavailable'}
+                self._target_geometry.pop('target_current_pelvis_xy_m', None)
+            else:
+                self._target_geometry = update_target_for_pose(
+                    self._target_geometry, pose, reference_frame_id=frame.frame_id)
+            self._save_json(f'decision_{self.decision_index:03d}_target_geometry.json', self._target_geometry)
+            point = self._target_geometry.get('target_current_pelvis_xy_m')
+            if point is not None:
+                print(f'[REAL VLN GEOMETRY] 转向后pelvis目标={point}m；'
+                      '已补偿采图外参及实际SLAM位姿，仅记录，尚未传入iPlanner', flush=True)
+        return frame, pose
 
     def _capture_forward_and_plan(self, completed_step, timestamp):
         if self.pending is not None and self.pending.response.direction != 'forward':
